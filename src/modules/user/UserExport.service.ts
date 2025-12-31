@@ -5,6 +5,9 @@ import { stringify } from 'csv-stringify';
 const User_EXPORT_HEADERS = [
     'Full Name',
     'Email',
+    'Position',
+    'Contact Number',
+    'Employment Date',
     'Employee ID',
 ];
 
@@ -21,6 +24,9 @@ export const UserExportService = {
         const records = UserData.map(User => [
             User.name,
             User.email,
+            User.position,
+            User.contactNumber,
+            User.employmentDate ? new Date(User.employmentDate).toISOString().split('T')[0] : '',
             User.userOrgId,
         ]);
 

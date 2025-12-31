@@ -73,6 +73,9 @@ class UserRepositoryImpl implements UserRepository {
       select: {
         name: true,
         email: true,
+        position: true,
+        contactNumber: true,
+        employmentDate: true,
         userOrgId: true,
       },
       orderBy: { name: 'asc' }, // Order the output
