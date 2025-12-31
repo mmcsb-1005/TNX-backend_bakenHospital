@@ -1,0 +1,139 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id       String   @id @default(cuid())
+  name     String?
+  email    String?   @unique
+  image    String?
+  position String?
+  contactNumber String?
+  employmentDate DateTime?
+  role     UserRole @default(USER)
+  userOrgId String? @unique
+  password String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+model Training {
+  id              String         @id @default(cuid())
+  title           String
+  organizer       String
+  trainingType    TrainingType
+  dateTimeStart   DateTime
+  dateTimeEnd     DateTime
+  duration        String?        // Auto calculated field
+  venue           String
+  bond            BondType
+  typeOfPayment   PaymentType
+  budgeted        Boolean
+  sponsored       String?
+  accommodationCost Decimal?     @db.Decimal(10, 2)
+  travelCost      Decimal?       @db.Decimal(10, 2)
+  mealCost        Decimal?       @db.Decimal(10, 2)
+  trainingMethod  TrainingMethod
+  comment         String?        @db.Text
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+
+
+enum TrainingType {
+  IN_HOUSE
+  EXTERNAL
+  ONLINE
+}
+
+enum BondType {
+  BONDED
+  NON_BONDED
+}
+
+enum PaymentType {
+  HRDCORP
+  NONE
+}
+
+enum TrainingMethod {
+  CASH_IN_ADVANCE
+  PAY_AND_CLAIM
+}
+
+model Setting {
+  id       String   @id @default(cuid())
+  key      String?
+  value    String?
+  logoPath String?
+  primaryColor String?
+  secondaryColor String?
+  successColor String?
+  warningColor String?
+  dangerColor String?
+  infoColor String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Mail {
+  id       String   @id @default(cuid())
+  name     String?  @unique
+  subject  String?
+  body     String?
+  mailType MailType? @unique
+  sendTrigger SendTrigger?
+  daysOffset Int? // Number of days before/after assessment date to send the email
+  templateVariables Json?
+  isActive Boolean @default(true) // Allows deactivating a template without deleting
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique // The unique token string sent in the URL
+  userId    String   // The ID of the User or Admin user
+  userType  String   // 'user' or 'admin'
+  expiresAt DateTime // When the token becomes invalid (e.g., 1 hour from creation)
+  createdAt DateTime @default(now())
+}
+
+enum MailType {
+  PASSWORD_RESET
+  WELCOME_USER
+  GENERAL_ANNOUNCEMENT
+}
+
+enum SendTrigger {
+  MANUAL // Email must be triggered manually by an admin (e.g., password reset, general announcement)
+}
+
+model SystemLicense {
+  id        String   @id @default(cuid())
+  licenseKey String  @unique
+  issuedTo   String?
+  issuedAt   DateTime @default(now())
+  expiresAt  DateTime
+  isActive   Boolean  @default(true)
+  maxUserCount Int? @default(10)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
