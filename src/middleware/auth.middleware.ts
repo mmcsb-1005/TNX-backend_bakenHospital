@@ -32,3 +32,6 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
         return res.status(401).json({ message: 'Unauthorized v1.0. (Invalid or expired token', error: error, token: token , scheme: scheme, header: header });
     }
 }
+
+// Create alias for authMiddleware
+export const authMiddleware = requireAuth;

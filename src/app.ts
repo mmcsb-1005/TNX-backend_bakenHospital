@@ -13,6 +13,14 @@ import settingRoutes from './modules/setting/Setting.route'
 import publicSettingRoutes from './modules/setting/PublicSetting.route'
 import mailRoutes from './modules/mail/Mail.route'
 import trainingRoutes from './modules/training/training.routes'
+
+// New admin routes
+import designationRoutes from './modules/designation/Designation.route'
+import trainingCategoryRoutes from './modules/training-category/TrainingCategory.route'
+import requestTrainingRoutes from './modules/request-training/RequestTraining.route'
+import approvalUserRoutes from './modules/approval-user/ApprovalUser.route'
+import userAttendanceRoutes from './modules/user-attendance/UserAttendance.route'
+
 import { requireAuth } from './middleware/auth.middleware'
 
 const app = express();
@@ -90,6 +98,13 @@ app.use('/api/user', requireAuth, userRoutes);
 app.use('/api/setting', requireAuth, settingRoutes);
 app.use('/api/mail', requireAuth, mailRoutes);
 app.use('/api/training', requireAuth, trainingRoutes);
+
+// Admin API routes
+app.use('/api/admin/designation', requireAuth, designationRoutes);
+app.use('/api/admin/training-category', requireAuth, trainingCategoryRoutes);
+app.use('/api/admin/request-training', requireAuth, requestTrainingRoutes);
+app.use('/api/admin/approval-user', requireAuth, approvalUserRoutes);
+app.use('/api/admin/user-attendance', requireAuth, userAttendanceRoutes);
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 app.use(errorHandler);

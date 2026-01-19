@@ -19,11 +19,19 @@ model User {
   email    String?   @unique
   image    String?
   position String?
+  designationId String?
+  designation   Designation? @relation(fields: [designationId], references: [id])
   contactNumber String?
   employmentDate DateTime?
   role     UserRole @default(USER)
   userOrgId String? @unique
   password String?
+  
+  // Relations for request training
+  requestedTrainings RequestTraining[] @relation("RequestParticipant")
+  approvedBy        ApprovalUser[] @relation("ApprovalUsers")
+  approvedUsers     ApprovalUser[] @relation("ApprovedBy")
+  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -51,6 +59,13 @@ model Training {
   mealCost        Decimal?       @db.Decimal(10, 2)
   trainingMethod  TrainingMethod
   comment         String?        @db.Text
+  
+  // Relations
+  categoryId      String?
+  category        TrainingCategory? @relation(fields: [categoryId], references: [id])
+  requestTrainings RequestTraining[]
+  attendances     UserAttendance[]
+  
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 }
@@ -136,4 +151,71 @@ model SystemLicense {
   maxUserCount Int? @default(10)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+}
+
+// New models for admin panel
+
+model Designation {
+  id          String @id @default(cuid())
+  name        String @unique
+  description String?
+  level       Int    @default(1)
+  
+  users       User[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model TrainingCategory {
+  id          String @id @default(cuid())
+  name        String @unique
+  description String?
+  
+  trainings   Training[]
+  approvals   ApprovalUser[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model RequestTraining {
+  id           String @id @default(cuid())
+  requestName  String
+  trainingId   String
+  training     Training @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+  
+  participants User[] @relation("RequestParticipant")
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model ApprovalUser {
+  id                String @id @default(cuid())
+  title             String
+  trainingCategoryId String
+  trainingCategory  TrainingCategory @relation(fields: [trainingCategoryId], references: [id])
+  description       String?
+  
+  approvalUsers     User[] @relation("ApprovalUsers")
+  approvedBy        User[] @relation("ApprovedBy")
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model UserAttendance {
+  id          String @id @default(cuid())
+  trainingId  String
+  training    Training @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+  userId      String
+  attendanceDate DateTime
+  isPresent   Boolean @default(false)
+  comment     String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([trainingId, userId, attendanceDate])
 }

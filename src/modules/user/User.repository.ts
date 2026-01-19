@@ -14,11 +14,20 @@ interface UserRepository {
 
 class UserRepositoryImpl implements UserRepository {
   async getAllUser(): Promise<any[]> {
-    return await Model.findMany();
+    return await Model.findMany({
+      include: {
+        designation: true
+      }
+    });
   }
 
   async getUserById(id: string): Promise<any> {
-    return await Model.findUnique({ where: { id } });
+    return await Model.findUnique({ 
+      where: { id },
+      include: {
+        designation: true
+      }
+    });
   }
 
   async createUser(data: Prisma.UserCreateInput): Promise<any> {
