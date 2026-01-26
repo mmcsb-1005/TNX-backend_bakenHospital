@@ -55,6 +55,16 @@ class AuthServiceImpl implements AuthService {
 
     const token = this.generateToken(tokenPayload);
 
+    // Determine redirect path based on user role
+    let redirectPath: string;
+    if (user.role === 'USER') {
+      redirectPath = '/users/dashboard';
+    } else if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') {
+      redirectPath = '/admin/dashboard';
+    } else {
+      redirectPath = '/dashboard';
+    }
+
     return {
       message: 'Login successful',
       user: {
@@ -63,7 +73,8 @@ class AuthServiceImpl implements AuthService {
         name: user.name,
         role: user.role
       },
-      token
+      token,
+      redirectPath
     };
   }
 

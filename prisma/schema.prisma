@@ -29,7 +29,6 @@ model User {
   
   // Relations for request training
   requestedTrainings RequestTraining[] @relation("RequestParticipant")
-  approvedBy        ApprovalUser[] @relation("ApprovalUsers")
   approvedUsers     ApprovalUser[] @relation("ApprovedBy")
   
   createdAt DateTime @default(now())
@@ -198,7 +197,6 @@ model ApprovalUser {
   trainingCategory  TrainingCategory @relation(fields: [trainingCategoryId], references: [id])
   description       String?
   
-  approvalUsers     User[] @relation("ApprovalUsers")
   approvedBy        User[] @relation("ApprovedBy")
   
   createdAt         DateTime @default(now())

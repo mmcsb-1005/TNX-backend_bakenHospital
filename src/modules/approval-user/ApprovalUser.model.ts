@@ -11,12 +11,12 @@ export interface CreateApprovalUserInput {
   title: string;
   trainingCategoryId: string;
   description?: string;
-  approvalUserIds: string[];
+  approvedByIds: string[];
 }
 
 export interface UpdateApprovalUserInput {
   title?: string;
   trainingCategoryId?: string;
   description?: string;
-  approvalUserIds?: string[];
+  approvedByIds?: string[];
 }

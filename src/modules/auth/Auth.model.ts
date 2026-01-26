@@ -19,6 +19,7 @@ export interface LoginResponse {
     role: string;
   };
   token: string;
+  redirectPath: string;
 }
 
 export interface JwtPayload {

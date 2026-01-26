@@ -19,14 +19,6 @@ export class ApprovalUserService {
       throw new Error('Training category not found');
     }
 
-    // Validate all approval users exist
-    const users = await this.prisma.user.findMany({
-      where: { id: { in: data.approvalUserIds } },
-    });
-    if (users.length !== data.approvalUserIds.length) {
-      throw new Error('Some approval users not found');
-    }
-
     return await this.approvalUserRepository.create(data);
   }
 
@@ -53,16 +45,6 @@ export class ApprovalUserService {
       });
       if (!trainingCategory) {
         throw new Error('Training category not found');
-      }
-    }
-
-    // Validate all approval users exist if updating
-    if (data.approvalUserIds) {
-      const users = await this.prisma.user.findMany({
-        where: { id: { in: data.approvalUserIds } },
-      });
-      if (users.length !== data.approvalUserIds.length) {
-        throw new Error('Some approval users not found');
       }
     }
 

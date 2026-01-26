@@ -8,18 +8,18 @@ export class ApprovalUserRepository {
   }
 
   async create(data: CreateApprovalUserInput) {
-    const { approvalUserIds, ...approvalData } = data;
+    const { approvedByIds, ...approvalData } = data;
     
     return await this.prisma.approvalUser.create({
       data: {
         ...approvalData,
-        approvalUsers: {
-          connect: approvalUserIds.map(id => ({ id })),
+        approvedBy: {
+          connect: approvedByIds.map(id => ({ id })),
         },
       },
       include: {
         trainingCategory: true,
-        approvalUsers: {
+        approvedBy: {
           include: {
             designation: true,
           },
@@ -32,14 +32,14 @@ export class ApprovalUserRepository {
     return await this.prisma.approvalUser.findMany({
       include: {
         trainingCategory: true,
-        approvalUsers: {
+        approvedBy: {
           include: {
             designation: true,
           },
         },
         _count: {
           select: {
-            approvalUsers: true,
+            approvedBy: true,
           },
         },
       },
@@ -54,7 +54,7 @@ export class ApprovalUserRepository {
       where: { id },
       include: {
         trainingCategory: true,
-        approvalUsers: {
+        approvedBy: {
           include: {
             designation: true,
           },
@@ -64,13 +64,13 @@ export class ApprovalUserRepository {
   }
 
   async update(id: string, data: UpdateApprovalUserInput) {
-    const { approvalUserIds, ...updateData } = data;
+    const { approvedByIds, ...updateData } = data;
     
     const updatePayload: any = { ...updateData };
     
-    if (approvalUserIds) {
-      updatePayload.approvalUsers = {
-        set: approvalUserIds.map(id => ({ id })),
+    if (approvedByIds) {
+      updatePayload.approvedBy = {
+        set: approvedByIds.map(id => ({ id })),
       };
     }
 
@@ -79,7 +79,7 @@ export class ApprovalUserRepository {
       data: updatePayload,
       include: {
         trainingCategory: true,
-        approvalUsers: {
+        approvedBy: {
           include: {
             designation: true,
           },
