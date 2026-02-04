@@ -18,7 +18,7 @@ class DataControllerImpl implements DataController {
   }
 
   async getDataById(req: Request, res: Response): Promise<void> {
-    const id = req.params.id;
+    const id = req.params.id as string;
     const result = await MailRepository.findById(id);
     res.json(result);
   }
@@ -30,14 +30,14 @@ class DataControllerImpl implements DataController {
   }
 
   async updateData(req: Request, res: Response): Promise<void> {
-    const id = req.params.id;
+    const id = req.params.id as string;
     const data = req.body;
     const result = await MailRepository.update(id, data);
     res.json(result);
   }
 
   async deleteData(req: Request, res: Response): Promise<void> {
-    const id = req.params.id;
+    const id = req.params.id as string;
     await MailRepository.delete(id);
     res.json({ message: 'Mail deleted successfully' });
   }

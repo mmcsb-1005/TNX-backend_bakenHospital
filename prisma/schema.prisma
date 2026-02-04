@@ -6,7 +6,6 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../generated/prisma"
 }
 
 datasource db {
@@ -93,18 +92,17 @@ enum TrainingMethod {
 }
 
 model Setting {
-  id       String   @id @default(cuid())
-  key      String?
-  value    String?
-  logoPath String?
-  primaryColor String?
-  secondaryColor String?
-  successColor String?
-  warningColor String?
-  dangerColor String?
-  infoColor String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                    String   @id @default(cuid())
+  logoPath              String?
+  companyName           String?
+  phoneNumber           String?
+  address               String?
+  email                 String?
+  trainingReminderDays  Int?     @default(7)
+  primaryColor          String?  @default("#3b82f6")
+  secondaryColor        String?  @default("#8b5cf6")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 }
 
 model Mail {
@@ -159,6 +157,11 @@ model Designation {
   name        String @unique
   description String?
   level       Int    @default(1)
+  
+  // Parent-Child relationship
+  parentId    String?
+  parent      Designation?  @relation("DesignationHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Designation[] @relation("DesignationHierarchy")
   
   users       User[]
   
@@ -216,4 +219,77 @@ model UserAttendance {
   updatedAt   DateTime @updatedAt
   
   @@unique([trainingId, userId, attendanceDate])
+}
+
+// Dynamic Form Builder Models
+
+model Form {
+  id          String   @id @default(cuid())
+  title       String
+  description String?  @db.Text
+  isActive    Boolean  @default(true)
+  formType    FormType @default(CUSTOM)
+  
+  fields      FormField[]
+  submissions FormSubmission[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+enum FormType {
+  EVALUATION
+  PRE_POST
+  CUSTOM
+}
+
+model FormField {
+  id          String     @id @default(cuid())
+  formId      String
+  form        Form       @relation(fields: [formId], references: [id], onDelete: Cascade)
+  
+  label       String
+  fieldType   FieldType
+  placeholder String?
+  required    Boolean    @default(false)
+  order       Int        // For sorting/ordering fields
+  
+  // For options (select, radio, checkbox)
+  options     Json?      // ["Option 1", "Option 2"]
+  
+  // Validation rules
+  validation  Json?      // {min: 5, max: 100, pattern: "email"}
+  
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  
+  @@index([formId])
+}
+
+enum FieldType {
+  TEXT
+  TEXTAREA
+  NUMBER
+  EMAIL
+  DATE
+  SELECT
+  RADIO
+  CHECKBOX
+  FILE
+  RATING
+  HEADER
+  PARAGRAPH
+}
+
+model FormSubmission {
+  id          String   @id @default(cuid())
+  formId      String
+  form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  
+  userId      String?  // Optional: if tracking who submitted
+  responses   Json     // {field_id: "value"}
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([formId])
 }

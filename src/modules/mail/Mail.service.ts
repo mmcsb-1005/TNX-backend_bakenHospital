@@ -1,6 +1,6 @@
 import * as nodemailer from 'nodemailer';
 import { MailRepository } from './Mail.repository';
-import { MailType } from '../../../generated/prisma/client';
+import { MailType } from '@prisma/client';
 
 // --- 1. Nodemailer Transporter Setup ---
 // This uses the environment variables we added above

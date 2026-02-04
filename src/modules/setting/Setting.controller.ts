@@ -7,6 +7,7 @@ interface DataController {
   createData(req: Request, res: Response): Promise<void>;
   updateData(req: Request, res: Response): Promise<void>;
   deleteData(req: Request, res: Response): Promise<void>;
+  upsertData(req: Request, res: Response): Promise<void>;
   uploadLogo(req: Request, res: Response): Promise<void>;
   getPublicLogoPath(req: Request, res: Response): Promise<void>;
 }
@@ -18,7 +19,7 @@ class DataControllerImpl implements DataController {
   }
 
   async getDataById(req: Request, res: Response): Promise<void> {
-    const id = req.params.id;
+    const id = req.params.id as string;
     const result = await DataRepository.getDataById(id);
     res.json(result);
   }
@@ -30,14 +31,23 @@ class DataControllerImpl implements DataController {
   }
 
   async updateData(req: Request, res: Response): Promise<void> {
-    const id = req.params.id;
+    const id = req.params.id as string;
     const data = req.body;
     const result = await DataRepository.updateData(id, data);
     res.json(result);
   }
 
+  /**
+   * Upsert setting data - always updates first record or creates if none exists
+   */
+  async upsertData(req: Request, res: Response): Promise<void> {
+    const data = req.body;
+    const result = await DataRepository.upsertData(data);
+    res.json(result);
+  }
+
   async deleteData(req: Request, res: Response): Promise<void> {
-    const id = req.params.id;
+    const id = req.params.id as string;
     await DataRepository.deleteData(id);
     res.json({ message: 'Setting deleted successfully' });
   }

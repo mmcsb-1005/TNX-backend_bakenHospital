@@ -2,7 +2,9 @@ import { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import csv from 'csv-parser';
 import { Readable } from 'stream';
-import { RawImportRow } from '../utils/import/Import.model'; // Use generic type
+
+// Generic type for CSV row data
+type RawImportRow = Record<string, string>
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });

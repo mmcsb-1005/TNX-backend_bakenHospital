@@ -4,7 +4,7 @@ import crypto from 'crypto'; // Import for secure token generation
 import { AuthRepository } from './Auth.repository';
 import { JwtPayload, LoginRequest, LoginResponse, ForgotPasswordRequest, ResetPasswordRequest, PasswordResetToken } from './Auth.model';
 import { MailService } from '../mail/Mail.service'; // Import the MailService
-import { MailType } from '../../../generated/prisma/client'; // Import MailType enum
+import { MailType } from '@prisma/client'; // Import MailType enum
 
 interface AuthService {
   login(loginData: LoginRequest): Promise<LoginResponse>;

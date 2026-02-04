@@ -1,5 +1,5 @@
 import { Model } from "./User.model";
-import type { Prisma } from "../../../generated/prisma/client";
+import type { Prisma } from "@prisma/client";
 import { hashPasswordIfNeeded } from "../../utils/password";
 import { prisma } from "../../lib/prisma";
 
@@ -15,8 +15,23 @@ interface UserRepository {
 class UserRepositoryImpl implements UserRepository {
   async getAllUser(): Promise<any[]> {
     return await Model.findMany({
-      include: {
-        designation: true
+      where: {
+        role: 'USER' // Only return users with USER role
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
+        position: true,
+        designationId: true,
+        designation: true,
+        contactNumber: true,
+        employmentDate: true,
+        role: true,
+        userOrgId: true,
+        createdAt: true,
+        updatedAt: true,
       }
     });
   }
@@ -31,26 +46,12 @@ class UserRepositoryImpl implements UserRepository {
   }
 
   async createUser(data: Prisma.UserCreateInput): Promise<any> {
-    // 1. Fetch the Vendor/License configuration
-    const license = await prisma.systemLicense.findFirst();
-
-    // Default to a safe limit (e.g., 5) if no license record exists yet
-    const limit = license?.maxUserCount ?? 5; 
-
-    // 2. Check current count
-    const currentCount = await prisma.user.count();
-
-    // 3. Enforce the limit
-    if (currentCount >= limit) {
-        throw new Error(`Subscription limit reached. Your license allows ${limit} users. Please contact support to upgrade.`);
-    }
-    // 4. Preserve current hashing logic
+    // Hash the password if provided in the input data
     const payload = { ...data } as Prisma.UserCreateInput;
     if ((payload as any).password) {
-        // Hash the password if provided in the input data
         (payload as any).password = await hashPasswordIfNeeded((payload as any).password as string);
     }
-    // 5. Create the new User record
+    // Create the new User record
     return await prisma.user.create({ data: payload });
   }
 

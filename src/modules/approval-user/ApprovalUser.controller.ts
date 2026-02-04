@@ -37,7 +37,7 @@ export class ApprovalUserController {
   getApprovalUserById = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
-      const approvalUser = await this.approvalUserService.getApprovalUserById(id);
+      const approvalUser = await this.approvalUserService.getApprovalUserById(id as string);
       res.status(200).json({
         success: true,
         data: approvalUser,
@@ -51,7 +51,7 @@ export class ApprovalUserController {
   updateApprovalUser = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
-      const approvalUser = await this.approvalUserService.updateApprovalUser(id, req.body);
+      const approvalUser = await this.approvalUserService.updateApprovalUser(id as string, req.body);
       res.status(200).json({
         success: true,
         data: approvalUser,
@@ -65,7 +65,7 @@ export class ApprovalUserController {
   deleteApprovalUser = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
-      await this.approvalUserService.deleteApprovalUser(id);
+      await this.approvalUserService.deleteApprovalUser(id as string);
       res.status(200).json({
         success: true,
         message: 'Approval user deleted successfully',

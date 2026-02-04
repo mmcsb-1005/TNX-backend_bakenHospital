@@ -37,7 +37,7 @@ export class UserAttendanceController {
   getUserAttendanceById = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
-      const attendance = await this.userAttendanceService.getUserAttendanceById(id);
+      const attendance = await this.userAttendanceService.getUserAttendanceById(id as string);
       res.status(200).json({
         success: true,
         data: attendance,
@@ -51,7 +51,7 @@ export class UserAttendanceController {
   getUserAttendancesByTraining = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { trainingId } = req.params;
-      const attendances = await this.userAttendanceService.getUserAttendancesByTraining(trainingId);
+      const attendances = await this.userAttendanceService.getUserAttendancesByTraining(trainingId as string);
       res.status(200).json({
         success: true,
         data: attendances,
@@ -66,8 +66,8 @@ export class UserAttendanceController {
     try {
       const { trainingId, date } = req.params;
       const attendances = await this.userAttendanceService.getUserAttendancesByTrainingAndDate(
-        trainingId, 
-        date
+        trainingId as string, 
+        date as string
       );
       res.status(200).json({
         success: true,
@@ -82,7 +82,7 @@ export class UserAttendanceController {
   getTrainingWithDatesAndParticipants = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { trainingId } = req.params;
-      const data = await this.userAttendanceService.getTrainingWithDatesAndParticipants(trainingId);
+      const data = await this.userAttendanceService.getTrainingWithDatesAndParticipants(trainingId as string);
       res.status(200).json({
         success: true,
         data,
@@ -109,7 +109,7 @@ export class UserAttendanceController {
   updateUserAttendance = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
-      const attendance = await this.userAttendanceService.updateUserAttendance(id, req.body);
+      const attendance = await this.userAttendanceService.updateUserAttendance(id as string, req.body);
       res.status(200).json({
         success: true,
         data: attendance,
@@ -124,8 +124,8 @@ export class UserAttendanceController {
     try {
       const { trainingId, date } = req.params;
       const attendances = await this.userAttendanceService.bulkUpdateAttendance(
-        trainingId, 
-        date, 
+        trainingId as string, 
+        date as string, 
         req.body
       );
       res.status(200).json({
@@ -141,7 +141,7 @@ export class UserAttendanceController {
   deleteUserAttendance = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
-      await this.userAttendanceService.deleteUserAttendance(id);
+      await this.userAttendanceService.deleteUserAttendance(id as string);
       res.status(200).json({
         success: true,
         message: 'User attendance deleted successfully',

@@ -6,6 +6,7 @@ interface DataRepository {
   createData(data: any): Promise<any>;
   updateData(id: String, data: any): Promise<any>;
   deleteData(id: String): Promise<void>;
+  upsertData(data: any): Promise<any>;
 }
 
 class DataRepositoryImpl implements DataRepository {
@@ -27,6 +28,26 @@ class DataRepositoryImpl implements DataRepository {
 
   async deleteData(id: string): Promise<void> {
     await Model.delete({ where: { id } });
+  }
+
+  /**
+   * Upsert (update or insert) setting data
+   * Always updates the first record if exists, otherwise creates new
+   */
+  async upsertData(data: any): Promise<any> {
+    // Get the first setting record
+    const existingSetting = await Model.findFirst();
+
+    if (existingSetting) {
+      // Update existing record
+      return await Model.update({
+        where: { id: existingSetting.id },
+        data,
+      });
+    } else {
+      // Create new record
+      return await Model.create({ data });
+    }
   }
 
   async getLogoPath(): Promise<string | null> {

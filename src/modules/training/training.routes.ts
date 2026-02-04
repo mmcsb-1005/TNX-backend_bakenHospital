@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { TrainingController } from './Training.controller'
 import { requireAuth } from '../../middleware/auth.middleware'
+import { csvImportMiddleware } from '../../middleware/csvImport.middleware'
 
 const router = Router()
 
@@ -24,5 +25,14 @@ router.delete('/:id', TrainingController.deleteTraining)
 
 // POST /api/training/bulk-delete - Bulk delete trainings
 router.post('/bulk-delete', TrainingController.bulkDeleteTrainings)
+
+// GET /api/training/template/download - Download CSV template
+router.get('/template/download', TrainingController.downloadTemplate)
+
+// GET /api/training/export - Export all trainings to CSV
+router.get('/export', TrainingController.exportTrainings)
+
+// POST /api/training/import - Import trainings from CSV
+router.post('/import', csvImportMiddleware, TrainingController.importTrainings)
 
 export default router

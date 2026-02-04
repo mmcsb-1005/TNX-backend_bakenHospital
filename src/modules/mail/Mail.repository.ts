@@ -5,7 +5,7 @@ import {
     MailRecord 
 } from './Mail.model';
 // FIX 1: Import the Prisma namespace
-import { MailType, SendTrigger, Prisma } from '../../../generated/prisma/client'; 
+import { MailType, SendTrigger, Prisma } from '@prisma/client'; 
 
 // ----------------------------------------------------
 // 1. Interface Definition (No Change)

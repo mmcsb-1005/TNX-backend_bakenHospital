@@ -1,5 +1,5 @@
 import prisma from "../../lib/prisma"; // Adjust path as necessary
-import { MailType, SendTrigger } from "../../../generated/prisma/client";
+import { MailType, SendTrigger } from "@prisma/client";
 
 // Export the Prisma client for the Mail model
 export const Mail = prisma.mail;

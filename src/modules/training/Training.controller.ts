@@ -1,5 +1,7 @@
 import { Request, Response } from 'express'
 import { prisma } from '../../lib/prisma'
+import { TrainingImportService } from './TrainingImport.service'
+import { TrainingExportService } from './TrainingExport.service'
 
 export class TrainingController {
   // Get all trainings
@@ -30,7 +32,7 @@ export class TrainingController {
     try {
       const { id } = req.params
       const training = await prisma.training.findUnique({
-        where: { id }
+        where: { id: id as string }
       })
 
       if (!training) {
@@ -57,7 +59,8 @@ export class TrainingController {
   // Helper function to calculate duration
   static calculateDuration(startDate: Date, endDate: Date): string {
     const diffMs = endDate.getTime() - startDate.getTime()
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+    // Add 1 to include both start and end date
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1
     const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
     const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60))
 
@@ -181,7 +184,7 @@ export class TrainingController {
 
       // Check if training exists
       const existingTraining = await prisma.training.findUnique({
-        where: { id }
+        where: { id: id as string }
       })
 
       if (!existingTraining) {
@@ -204,11 +207,11 @@ export class TrainingController {
           })
         }
         
-        duration = this.calculateDuration(startDate, endDate)
+        duration = TrainingController.calculateDuration(startDate, endDate)
       }
 
       const training = await prisma.training.update({
-        where: { id },
+        where: { id: id as string },
         data: {
           ...(title && { title }),
           ...(organizer && { organizer }),
@@ -249,7 +252,7 @@ export class TrainingController {
       const { id } = req.params
 
       const existingTraining = await prisma.training.findUnique({
-        where: { id }
+        where: { id: id as string }
       })
 
       if (!existingTraining) {
@@ -260,7 +263,7 @@ export class TrainingController {
       }
 
       await prisma.training.delete({
-        where: { id }
+        where: { id: id as string }
       })
 
       return res.status(200).json({
@@ -305,6 +308,90 @@ export class TrainingController {
       return res.status(500).json({
         success: false,
         message: 'Error deleting trainings',
+        error: error.message
+      })
+    }
+  }
+
+  // Import trainings from CSV
+  static async importTrainings(req: Request, res: Response) {
+    try {
+      const { data } = req.body
+
+      if (!data || !Array.isArray(data) || data.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'No data provided for import'
+        })
+      }
+
+      const result = await TrainingImportService.importTrainings(data)
+
+      const statusCode = result.success ? 200 : 207 // 207 Multi-Status for partial success
+
+      return res.status(statusCode).json({
+        success: result.success,
+        data: result,
+        message: result.success 
+          ? `Successfully imported ${result.successCount} training(s)`
+          : `Imported ${result.successCount} training(s) with ${result.failedCount} failure(s)`
+      })
+    } catch (error: any) {
+      return res.status(500).json({
+        success: false,
+        message: 'Error importing trainings',
+        error: error.message
+      })
+    }
+  }
+
+  // Download CSV template
+  static async downloadTemplate(req: Request, res: Response) {
+    try {
+      const headers = TrainingImportService.getTemplateHeaders()
+      const sampleData = TrainingImportService.getSampleData()
+
+      // Create CSV manually for more control
+      const csvHeaders = headers.join(',')
+      const csvRows = sampleData.map(row => 
+        headers.map(header => {
+          const value = row[header as keyof typeof row] || ''
+          // Escape values that contain commas or quotes
+          if (String(value).includes(',') || String(value).includes('"')) {
+            return `"${String(value).replace(/"/g, '""')}"`
+          }
+          return value
+        }).join(',')
+      )
+      
+      const csvContent = [csvHeaders, ...csvRows].join('\n')
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+      res.setHeader('Content-Disposition', 'attachment; filename=training-import-template.csv')
+      res.send(csvContent)
+    } catch (error: any) {
+      console.error('Error downloading template:', error)
+      return res.status(500).json({
+        success: false,
+        message: 'Error downloading template',
+        error: error.message
+      })
+    }
+  }
+
+  // Export all trainings to CSV
+  static async exportTrainings(req: Request, res: Response) {
+    try {
+      const csvData = await TrainingExportService.exportToCsv()
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+      res.setHeader('Content-Disposition', `attachment; filename=trainings_export_${new Date().toISOString().slice(0, 10)}.csv`)
+      res.send(csvData)
+    } catch (error: any) {
+      console.error('Training Export Error:', error)
+      return res.status(500).json({
+        success: false,
+        message: 'Error exporting trainings',
         error: error.message
       })
     }

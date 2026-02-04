@@ -15,6 +15,14 @@ export class DesignationService {
       throw new Error('Designation with this name already exists');
     }
 
+    // Validate parent if provided
+    if (data.parentId) {
+      const parent = await this.designationRepository.findById(data.parentId);
+      if (!parent) {
+        throw new Error('Parent designation not found');
+      }
+    }
+
     return await this.designationRepository.create(data);
   }
 
@@ -39,6 +47,27 @@ export class DesignationService {
       const existing = await this.designationRepository.findByName(data.name);
       if (existing && existing.id !== id) {
         throw new Error('Designation with this name already exists');
+      }
+    }
+
+    // Prevent circular parent relationship
+    if (data.parentId) {
+      if (data.parentId === id) {
+        throw new Error('Designation cannot be its own parent');
+      }
+      
+      const parent = await this.designationRepository.findById(data.parentId);
+      if (!parent) {
+        throw new Error('Parent designation not found');
+      }
+      
+      // Check if setting this parent would create a circular reference
+      let currentParent = parent;
+      while (currentParent?.parentId) {
+        if (currentParent.parentId === id) {
+          throw new Error('Cannot create circular parent-child relationship');
+        }
+        currentParent = await this.designationRepository.findById(currentParent.parentId) as any;
       }
     }
 

@@ -1,6 +1,6 @@
 import prisma from '../lib/prisma';
 import { hashPasswordIfNeeded } from '../utils/password';
-import { UserRole } from '../../generated/prisma/client';
+import { UserRole } from '@prisma/client';
 
 export async function ensureAdmin() {
     const adminExists = await prisma.user.count({ where: { role: UserRole.ADMIN } });

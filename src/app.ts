@@ -13,6 +13,7 @@ import settingRoutes from './modules/setting/Setting.route'
 import publicSettingRoutes from './modules/setting/PublicSetting.route'
 import mailRoutes from './modules/mail/Mail.route'
 import trainingRoutes from './modules/training/training.routes'
+import formRoutes from './modules/form/form.routes'
 
 // New admin routes
 import designationRoutes from './modules/designation/Designation.route'
@@ -105,6 +106,9 @@ app.use('/api/admin/training-category', requireAuth, trainingCategoryRoutes);
 app.use('/api/admin/request-training', requireAuth, requestTrainingRoutes);
 app.use('/api/admin/approval-user', requireAuth, approvalUserRoutes);
 app.use('/api/admin/user-attendance', requireAuth, userAttendanceRoutes);
+
+// Form routes (admin and public)
+app.use('/api', formRoutes);
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 app.use(errorHandler);
