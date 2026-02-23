@@ -33,13 +33,18 @@ export const createCloudinaryStorage = (folder: string): any => {
                 format: file.mimetype.split('/')[1],
                 public_id: publicId,
                 // Optional: apply automatic optimizations
-                quality: "auto:best", 
+                quality: "auto:good", // Changed from auto:best to auto:good for faster processing
                 fetch_format: "auto",
-                // Optional: Standard transformations for all uploads
+                // Optional: Smaller transformation for faster processing
                 transformation: [
-                    { width: 500, height: 500, crop: 'limit' } 
+                    { width: 400, height: 400, crop: 'limit' } // Reduced from 500x500 to 400x400
                 ],
-                tags: isLogo ? ['logo', 'setting'] : ['staff', 'photo']
+                tags: isLogo ? ['logo', 'setting'] : ['staff', 'photo'],
+                // Enable eager transformation for immediate optimization
+                eager: [
+                    { width: 150, height: 150, crop: 'thumb', gravity: 'face' }, // Thumbnail
+                    { width: 400, height: 400, crop: 'limit' } // Standard size
+                ]
             };
         },
     });

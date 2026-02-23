@@ -1,9 +1,8 @@
 import { PrismaClient } from "@prisma/client";
-import { PrismaPg } from '@prisma/adapter-pg'; // Import the adapter
-import * as pg from 'pg'; // Import the underlying database driver
+import { PrismaPg } from '@prisma/adapter-pg';
+import * as pg from 'pg';
 
-// 1. Create a pool or client instance from the underlying driver
-// We use a connection pool (Pool) which is standard for Node.js backend apps
+// Setup database connection for Prisma 7
 const connectionString = process.env.DATABASE_URL;
 
 if (!connectionString) {
@@ -11,17 +10,14 @@ if (!connectionString) {
 }
 
 const pool = new pg.Pool({ connectionString });
-// 2. Instantiate the adapter, passing the driver instance
 const adapter = new PrismaPg(pool);
-
 
 const globalForPrisma = globalThis as unknown as {
     prisma: PrismaClient | undefined;
 };
 
-// 3. Pass the adapter instance into the PrismaClient constructor
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({
-    adapter, // <-- The required change
+    adapter,
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error']
 });
 

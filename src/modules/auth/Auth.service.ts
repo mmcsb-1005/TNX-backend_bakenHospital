@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import bcrypt from 'bcryptjs';
+import * as bcrypt from 'bcryptjs';
 import crypto from 'crypto'; // Import for secure token generation
 import { AuthRepository } from './Auth.repository';
 import { JwtPayload, LoginRequest, LoginResponse, ForgotPasswordRequest, ResetPasswordRequest, PasswordResetToken } from './Auth.model';
@@ -48,6 +48,7 @@ class AuthServiceImpl implements AuthService {
     }
 
     const tokenPayload: JwtPayload = {
+      id: user.id,
       userId: user.id,
       email: user.email,
       role: user.role

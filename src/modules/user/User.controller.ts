@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { UserRepository } from './User.repository';
 import { UserExportService } from './UserExport.service';
 import { UserImportService } from './UserImport.service';
+import { UserProfileService } from '../../services/userProfileService';
 
 interface UserController {
   getAllUser(req: Request, res: Response): Promise<void>;
@@ -13,6 +14,12 @@ interface UserController {
   uploadPhoto(req: Request, res: Response): Promise<void>;
   importUsers(req: Request, res: Response): Promise<void>;
   downloadTemplate(req: Request, res: Response): Promise<void>;
+  // Profile-specific methods
+  getMyProfile(req: Request, res: Response): Promise<void>;
+  updateMyProfile(req: Request, res: Response): Promise<void>;
+  changePassword(req: Request, res: Response): Promise<void>;
+  getMyTrainingHistory(req: Request, res: Response): Promise<void>;
+  getDesignations(req: Request, res: Response): Promise<void>;
 }
 
 class UserControllerImpl implements UserController {
@@ -205,6 +212,148 @@ class UserControllerImpl implements UserController {
         message: 'Error downloading template',
         error: error.message
       })
+    }
+  }
+
+  // Profile-specific methods
+  
+  /**
+   * Get current user's profile
+   */
+  async getMyProfile(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.id; // Assuming middleware sets user
+      
+      if (!userId) {
+        res.status(401).json({ error: 'User not authenticated' });
+        return;
+      }
+
+      const profile = await UserProfileService.getUserProfile(userId);
+      
+      if (!profile) {
+        res.status(404).json({ error: 'User profile not found' });
+        return;
+      }
+
+      res.json(profile);
+    } catch (error) {
+      console.error('Get profile error:', error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'Failed to get user profile' 
+      });
+    }
+  }
+
+  /**
+   * Update current user's profile
+   */
+  async updateMyProfile(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      
+      if (!userId) {
+        res.status(401).json({ error: 'User not authenticated' });
+        return;
+      }
+
+      const { name, email, image, position, contactNumber, designationId } = req.body;
+      
+      const updatedProfile = await UserProfileService.updateUserProfile(userId, {
+        name,
+        email,
+        image,
+        position,
+        contactNumber,
+        designationId
+      });
+
+      res.json({ 
+        message: 'Profile updated successfully',
+        data: updatedProfile 
+      });
+    } catch (error) {
+      console.error('Update profile error:', error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'Failed to update profile' 
+      });
+    }
+  }
+
+  /**
+   * Change user password
+   */
+  async changePassword(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      
+      if (!userId) {
+        res.status(401).json({ error: 'User not authenticated' });
+        return;
+      }
+
+      const { currentPassword, newPassword, confirmPassword } = req.body;
+      
+      if (!currentPassword || !newPassword || !confirmPassword) {
+        res.status(400).json({ error: 'All password fields are required' });
+        return;
+      }
+
+      if (newPassword !== confirmPassword) {
+        res.status(400).json({ error: 'New passwords do not match' });
+        return;
+      }
+
+      if (newPassword.length < 6) {
+        res.status(400).json({ error: 'Password must be at least 6 characters long' });
+        return;
+      }
+
+      await UserProfileService.changePassword(userId, currentPassword, newPassword);
+
+      res.json({ message: 'Password changed successfully' });
+    } catch (error) {
+      console.error('Change password error:', error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'Failed to change password' 
+      });
+    }
+  }
+
+  /**
+   * Get user's training history
+   */
+  async getMyTrainingHistory(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      
+      if (!userId) {
+        res.status(401).json({ error: 'User not authenticated' });
+        return;
+      }
+
+      const trainingHistory = await UserProfileService.getUserTrainingHistory(userId);
+      res.json(trainingHistory);
+    } catch (error) {
+      console.error('Get training history error:', error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'Failed to get training history' 
+      });
+    }
+  }
+
+  /**
+   * Get all designations for dropdown
+   */
+  async getDesignations(req: Request, res: Response): Promise<void> {
+    try {
+      const designations = await UserProfileService.getDesignations();
+      res.json(designations);
+    } catch (error) {
+      console.error('Get designations error:', error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'Failed to get designations' 
+      });
     }
   }
 
