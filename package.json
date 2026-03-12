@@ -12,8 +12,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@prisma/adapter-pg": "^7.0.1",
-    "@prisma/client": "^7.3.0",
+    "@prisma/adapter-pg": "^6.19.2",
+    "@prisma/client": "^6.19.2",
     "@types/multer": "^2.0.0",
     "@types/swagger-jsdoc": "^6.0.4",
     "bcryptjs": "^3.0.2",
@@ -24,7 +24,8 @@
     "csv-writer": "^1.6.0",
     "express": "^5.1.0",
     "glob": "^11.0.3",
-    "html-pdf": "^3.0.1",
+    "html-pdf": "^1.5.0",
+    "html5-qrcode": "^2.3.8",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
     "multer-storage-cloudinary": "^2.2.1",
@@ -32,10 +33,14 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pg": "^8.16.3",
+    "prisma": "^6.19.2",
+    "qrcode": "^1.5.4",
+    "qrcode.react": "^4.2.0",
     "swagger-autogen": "^2.23.7",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",
@@ -45,8 +50,9 @@
     "@types/node": "^24.10.4",
     "@types/nodemailer": "^7.0.4",
     "@types/pg": "^8.15.6",
+    "@types/qrcode": "^1.5.6",
     "@types/swagger-ui-express": "^4.1.8",
-    "dotenv": "^17.2.3",
-    "prisma": "^7.3.0"
+    "@types/uuid": "^10.0.0",
+    "dotenv": "^17.2.3"
   }
 }

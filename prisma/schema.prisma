@@ -10,6 +10,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -33,6 +34,12 @@ model User {
   // Relations for request training
   requestedTrainings RequestTraining[] @relation("RequestParticipant")
   approvedUsers      ApprovalUser[]    @relation("ApprovedBy")
+  
+  // User attendance for trainings
+  userAttendances    UserAttendance[]
+  
+  // Form submissions
+  formSubmissions FormSubmission[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -91,6 +98,11 @@ model Training {
   mealCost          Decimal?       @db.Decimal(10, 2)
   trainingMethod    TrainingMethod
   comment           String?        @db.Text
+
+  // QR Code Attendance
+  qrCodeToken       String?   @unique // Unique token for QR code
+  qrCodeGeneratedAt DateTime? // When QR code was generated
+  qrCodeExpiresAt   DateTime? // When QR code expires
 
   // Relations
   categoryId       String?
@@ -170,6 +182,12 @@ enum SendTrigger {
   MANUAL // Email must be triggered manually by an admin (e.g., password reset, general announcement)
 }
 
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model SystemLicense {
   id           String   @id @default(cuid())
   licenseKey   String   @unique
@@ -219,6 +237,14 @@ model RequestTraining {
   trainingId  String
   training    Training @relation(fields: [trainingId], references: [id], onDelete: Cascade)
 
+  approvalUserId String?
+  approvalUser   ApprovalUser? @relation(fields: [approvalUserId], references: [id], onDelete: SetNull)
+
+  status        ApprovalStatus @default(PENDING)
+  approvedAt    DateTime?
+  rejectedAt    DateTime?
+  approvalNotes String?
+
   participants User[] @relation("RequestParticipant")
 
   createdAt DateTime @default(now())
@@ -232,7 +258,8 @@ model ApprovalUser {
   trainingCategory   TrainingCategory @relation(fields: [trainingCategoryId], references: [id])
   description        String?
 
-  approvedBy User[] @relation("ApprovedBy")
+  approvedBy       User[]            @relation("ApprovedBy")
+  requestTrainings RequestTraining[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -243,9 +270,14 @@ model UserAttendance {
   trainingId     String
   training       Training @relation(fields: [trainingId], references: [id], onDelete: Cascade)
   userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   attendanceDate DateTime
   isPresent      Boolean  @default(false)
   comment        String?
+  
+  // QR Code Scan Info
+  scannedAt      DateTime? // When user scanned QR code
+  scannedVia     String?   @default("QR_CODE") // Method: QR_CODE, MANUAL, etc
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -318,10 +350,13 @@ model FormSubmission {
   formId String
   form   Form   @relation(fields: [formId], references: [id], onDelete: Cascade)
 
-  userId    String? // Optional: if tracking who submitted
+  userId String? // Optional: if tracking who submitted
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
   responses Json // {field_id: "value"}
 
   createdAt DateTime @default(now())
 
   @@index([formId])
+  @@index([userId])
 }

@@ -21,4 +21,7 @@ router.post('/', userAttendanceController.createUserAttendance);
 router.put('/:id', userAttendanceController.updateUserAttendance);
 router.delete('/:id', userAttendanceController.deleteUserAttendance);
 
+// QR code attendance scanning
+router.post('/scan-qr', userAttendanceController.scanQRCode);
+
 export default router;

@@ -28,6 +28,16 @@ export class RequestTrainingRepository {
             designation: true,
           },
         },
+        approvalUser: {
+          include: {
+            trainingCategory: true,
+            approvedBy: {
+              include: {
+                designation: true,
+              },
+            },
+          },
+        },
       },
     });
   }
@@ -43,6 +53,16 @@ export class RequestTrainingRepository {
         participants: {
           include: {
             designation: true,
+          },
+        },
+        approvalUser: {
+          include: {
+            trainingCategory: true,
+            approvedBy: {
+              include: {
+                designation: true,
+              },
+            },
           },
         },
       },
@@ -64,6 +84,16 @@ export class RequestTrainingRepository {
         participants: {
           include: {
             designation: true,
+          },
+        },
+        approvalUser: {
+          include: {
+            trainingCategory: true,
+            approvedBy: {
+              include: {
+                designation: true,
+              },
+            },
           },
         },
       },
@@ -93,6 +123,16 @@ export class RequestTrainingRepository {
         participants: {
           include: {
             designation: true,
+          },
+        },
+        approvalUser: {
+          include: {
+            trainingCategory: true,
+            approvedBy: {
+              include: {
+                designation: true,
+              },
+            },
           },
         },
       },

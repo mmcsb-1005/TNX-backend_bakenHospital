@@ -9,9 +9,14 @@ const requestTrainingController = new RequestTrainingController();
 router.use(authMiddleware);
 
 router.get('/', requestTrainingController.getRequestTrainings);
+router.get('/pending/my-approvals', requestTrainingController.getPendingRequestsForApprover);
+router.get('/my-approvals', requestTrainingController.getAllRequestsForApprover);
+router.get('/my-trainings', requestTrainingController.getMyTrainings);
 router.get('/:id', requestTrainingController.getRequestTrainingById);
 router.post('/', requestTrainingController.createRequestTraining);
 router.put('/:id', requestTrainingController.updateRequestTraining);
 router.delete('/:id', requestTrainingController.deleteRequestTraining);
+router.post('/:id/approve', requestTrainingController.approveRequest);
+router.post('/:id/reject', requestTrainingController.rejectRequest);
 
 export default router;

@@ -11,18 +11,6 @@ router.use(requireAuth)
 // GET /api/training - Get all trainings
 router.get('/', TrainingController.getAllTrainings)
 
-// GET /api/training/:id - Get training by ID
-router.get('/:id', TrainingController.getTrainingById)
-
-// POST /api/training - Create new training
-router.post('/', TrainingController.createTraining)
-
-// PUT /api/training/:id - Update training
-router.put('/:id', TrainingController.updateTraining)
-
-// DELETE /api/training/:id - Delete training
-router.delete('/:id', TrainingController.deleteTraining)
-
 // POST /api/training/bulk-delete - Bulk delete trainings
 router.post('/bulk-delete', TrainingController.bulkDeleteTrainings)
 
@@ -34,5 +22,23 @@ router.get('/export', TrainingController.exportTrainings)
 
 // POST /api/training/import - Import trainings from CSV
 router.post('/import', csvImportMiddleware, TrainingController.importTrainings)
+
+// POST /api/training/:id/generate-qr - Generate QR code for training
+router.post('/:id/generate-qr', TrainingController.generateQRCode)
+
+// GET /api/training/:id/qr-code - Get QR code for training
+router.get('/:id/qr-code', TrainingController.getQRCode)
+
+// GET /api/training/:id - Get training by ID (MUST BE AFTER SPECIFIC ROUTES)
+router.get('/:id', TrainingController.getTrainingById)
+
+// POST /api/training - Create new training
+router.post('/', TrainingController.createTraining)
+
+// PUT /api/training/:id - Update training
+router.put('/:id', TrainingController.updateTraining)
+
+// DELETE /api/training/:id - Delete training
+router.delete('/:id', TrainingController.deleteTraining)
 
 export default router

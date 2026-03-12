@@ -1,30 +1,56 @@
-// src/middleware/imageUpload.middleware.ts (NEW CONTENT)
+// src/middleware/imageUpload.middleware.ts
 
 import { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
-// Note: We no longer need 'fs' or 'path' for local storage logic
-import { createCloudinaryStorage } from '../utils/cloudinary'; // Import the new utility
+import path from 'path';
+import fs from 'fs';
+import { v4 as uuidv4 } from 'uuid';
 
-// 1. Define the Cloudinary Storage instances
-// These folder names correspond to the subfolders used in createCloudinaryStorage
-const logoStorage = createCloudinaryStorage('logos');
+// Define storage for different upload types
+
+// --- Local Storage for Logos ---
+// From backend/src/middleware -> go up to workspace root -> frontend/public/logo
+const logoStoragePath = path.join(__dirname, '../../../frontend/public/logo');
+
+// Ensure the logo directory exists
+if (!fs.existsSync(logoStoragePath)) {
+  fs.mkdirSync(logoStoragePath, { recursive: true });
+}
+
+// Log the resolved path for debugging
+console.log('Logo storage path:', logoStoragePath);
+
+const localLogoStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, logoStoragePath);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = `${uuidv4()}${path.extname(file.originalname)}`;
+    cb(null, uniqueSuffix);
+  }
+});
+
+// --- Cloudinary Storage for Staff Photos (as an example of keeping both) ---
+import { createCloudinaryStorage } from '../utils/cloudinary';
 const staffPhotoStorage = createCloudinaryStorage('staff_photos');
 
-// 2. File Filter (remains mostly the same for explicit error handling)
+
+// 2. File Filter (remains the same)
 const fileFilter = (req: Request, file: any, cb: any) => {
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+    // Add 'image/svg' to accommodate differences in client mimetypes
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/svg'];
     
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid file type. Only JPEG, PNG, GIF, WEBP, and SVG are allowed.'));
+      cb(new Error(`Invalid file type (${file.mimetype}). Only JPEG, PNG, GIF, WEBP, and SVG are allowed.`));
     }
 };
 
 /**
- * Generic multer upload factory for Cloudinary
+ * Generic multer upload factory
  */
-const createCloudinaryUploadMiddleware = (storage: multer.StorageEngine, fieldName: string = 'image') => {
+const createUploadMiddleware = (storage: multer.StorageEngine, fieldName: string = 'image') => {
   const upload = multer({
     storage: storage,
     fileFilter: fileFilter,
@@ -38,14 +64,14 @@ const createCloudinaryUploadMiddleware = (storage: multer.StorageEngine, fieldNa
 };
 
 /**
- * Middleware for logo upload using Cloudinary
+ * Middleware for logo upload using LOCAL STORAGE
  */
-export const logoUploadMiddleware = createCloudinaryUploadMiddleware(logoStorage, 'logo');
+export const logoUploadMiddleware = createUploadMiddleware(localLogoStorage, 'logo');
 
 /**
  * Middleware for staff photo upload using Cloudinary
  */
-export const staffPhotoUploadMiddleware = createCloudinaryUploadMiddleware(staffPhotoStorage, 'photo');
+export const staffPhotoUploadMiddleware = createUploadMiddleware(staffPhotoStorage, 'photo');
 
 /**
  * Error handling middleware for multer errors (remains the same)

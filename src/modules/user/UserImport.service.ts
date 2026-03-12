@@ -6,7 +6,6 @@ interface UserImportRow {
   name: string
   email: string
   position?: string
-  designationId?: string
   contactNumber?: string
   employmentDate?: string
   role?: string
@@ -73,15 +72,17 @@ export class UserImportService {
           throw new Error(`Invalid role. Must be one of: ${validRoles.join(', ')}`)
         }
 
-        // Validate designation if provided
-        if (row.designationId) {
+        // Find designation by position name if provided
+        let designationId: string | null = null
+        if (row.position) {
           const designation = await prisma.designation.findUnique({
-            where: { id: row.designationId }
+            where: { name: row.position.trim() }
           })
           
-          if (!designation) {
-            throw new Error(`Designation with ID ${row.designationId} not found`)
+          if (designation) {
+            designationId = designation.id
           }
+          // Note: If designation not found, we still create the user with position but no designationId
         }
 
         // Parse employment date if provided
@@ -102,7 +103,7 @@ export class UserImportService {
             name: row.name.trim(),
             email: row.email.trim().toLowerCase(),
             position: row.position?.trim() || null,
-            designationId: row.designationId?.trim() || null,
+            designationId: designationId,
             contactNumber: row.contactNumber?.trim() || null,
             employmentDate: employmentDate || null,
             role: role as UserRole,
@@ -135,7 +136,6 @@ export class UserImportService {
       'name',
       'email',
       'position',
-      'designationId',
       'contactNumber',
       'employmentDate',
       'role',
@@ -153,7 +153,6 @@ export class UserImportService {
         name: 'John Doe',
         email: 'john.doe@example.com',
         position: 'Software Engineer',
-        designationId: '',
         contactNumber: '0123456789',
         employmentDate: '2026-01-15',
         role: 'USER',
@@ -164,7 +163,6 @@ export class UserImportService {
         name: 'Jane Smith',
         email: 'jane.smith@example.com',
         position: 'HR Manager',
-        designationId: '',
         contactNumber: '0129876543',
         employmentDate: '2025-12-01',
         role: 'USER',

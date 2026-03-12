@@ -116,4 +116,21 @@ export class UserProfileService {
       }
     });
   }
+
+  /**
+   * Get user's attendance records
+   */
+  static async getUserAttendance(userId: string) {
+    return await prisma.userAttendance.findMany({
+      where: {
+        userId: userId
+      },
+      include: {
+        training: true
+      },
+      orderBy: {
+        attendanceDate: 'desc'
+      }
+    });
+  }
 }

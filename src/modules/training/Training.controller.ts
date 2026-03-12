@@ -2,6 +2,8 @@ import { Request, Response } from 'express'
 import { prisma } from '../../lib/prisma'
 import { TrainingImportService } from './TrainingImport.service'
 import { TrainingExportService } from './TrainingExport.service'
+import QRCode from 'qrcode'
+import { v4 as uuidv4 } from 'uuid'
 
 export class TrainingController {
   // Get all trainings
@@ -392,6 +394,133 @@ export class TrainingController {
       return res.status(500).json({
         success: false,
         message: 'Error exporting trainings',
+        error: error.message
+      })
+    }
+  }
+
+  // Generate QR code for training attendance
+  static async generateQRCode(req: Request, res: Response) {
+    try {
+      const { id } = req.params
+      
+      // Check if training exists
+      const training = await prisma.training.findUnique({
+        where: { id: id as string }
+      })
+
+      if (!training) {
+        return res.status(404).json({
+          success: false,
+          message: 'Training not found'
+        })
+      }
+
+      // Generate unique token
+      const token = uuidv4()
+      const generatedAt = new Date()
+      const expiresAt = new Date(generatedAt.getTime() + 24 * 60 * 60 * 1000) // 24 hours
+
+      // Update training with QR code token
+      const updatedTraining = await prisma.training.update({
+        where: { id: id as string },
+        data: {
+          qrCodeToken: token,
+          qrCodeGeneratedAt: generatedAt,
+          qrCodeExpiresAt: expiresAt
+        }
+      })
+
+      // Generate QR code data URL
+      const qrData = JSON.stringify({
+        trainingId: id,
+        token: token,
+        timestamp: generatedAt.toISOString()
+      })
+
+      const qrCodeDataURL = await QRCode.toDataURL(qrData, {
+        errorCorrectionLevel: 'H',
+        width: 400,
+        margin: 2
+      })
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          training: updatedTraining,
+          qrCodeDataURL,
+          expiresAt
+        },
+        message: 'QR code generated successfully'
+      })
+    } catch (error: any) {
+      console.error('Error generating QR code:', error)
+      return res.status(500).json({
+        success: false,
+        message: 'Error generating QR code',
+        error: error.message
+      })
+    }
+  }
+
+  // Get QR code for training
+  static async getQRCode(req: Request, res: Response) {
+    try {
+      const { id } = req.params
+      
+      const training = await prisma.training.findUnique({
+        where: { id: id as string }
+      })
+
+      if (!training) {
+        return res.status(404).json({
+          success: false,
+          message: 'Training not found'
+        })
+      }
+
+      if (!training.qrCodeToken || !training.qrCodeExpiresAt) {
+        return res.status(404).json({
+          success: false,
+          message: 'QR code not generated for this training'
+        })
+      }
+
+      // Check if QR code is expired
+      if (new Date() > training.qrCodeExpiresAt) {
+        return res.status(410).json({
+          success: false,
+          message: 'QR code has expired. Please generate a new one.'
+        })
+      }
+
+      // Regenerate QR code data URL from stored token
+      const qrData = JSON.stringify({
+        trainingId: id,
+        token: training.qrCodeToken,
+        timestamp: training.qrCodeGeneratedAt?.toISOString()
+      })
+
+      const qrCodeDataURL = await QRCode.toDataURL(qrData, {
+        errorCorrectionLevel: 'H',
+        width: 400,
+        margin: 2
+      })
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          training,
+          qrCodeDataURL,
+          expiresAt: training.qrCodeExpiresAt
+        },
+        message: 'QR code retrieved successfully'
+      })
+    } catch (error: any) {
+      console.error('Error retrieving QR code:', error)
+      return res.status(500).json({
+        success: false,
+        message: 'Error retrieving QR code',
         error: error.message
       })
     }

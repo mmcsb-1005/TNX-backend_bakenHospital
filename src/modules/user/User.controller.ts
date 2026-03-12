@@ -19,6 +19,7 @@ interface UserController {
   updateMyProfile(req: Request, res: Response): Promise<void>;
   changePassword(req: Request, res: Response): Promise<void>;
   getMyTrainingHistory(req: Request, res: Response): Promise<void>;
+  getMyAttendance(req: Request, res: Response): Promise<void>;
   getDesignations(req: Request, res: Response): Promise<void>;
 }
 
@@ -338,6 +339,28 @@ class UserControllerImpl implements UserController {
       console.error('Get training history error:', error);
       res.status(500).json({ 
         error: error instanceof Error ? error.message : 'Failed to get training history' 
+      });
+    }
+  }
+
+  /**
+   * Get user's attendance records
+   */
+  async getMyAttendance(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      
+      if (!userId) {
+        res.status(401).json({ error: 'User not authenticated' });
+        return;
+      }
+
+      const attendances = await UserProfileService.getUserAttendance(userId);
+      res.json(attendances);
+    } catch (error) {
+      console.error('Get attendance error:', error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'Failed to get attendance records' 
       });
     }
   }

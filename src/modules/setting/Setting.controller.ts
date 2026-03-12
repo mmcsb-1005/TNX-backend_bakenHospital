@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import { DataRepository } from './Setting.repository';
+import fs from 'fs';
+import path from 'path';
 
 interface DataController {
   getAllData(req: Request, res: Response): Promise<void>;
@@ -59,22 +61,51 @@ class DataControllerImpl implements DataController {
         return;
       }
 
-      // The 'path' property from multer-storage-cloudinary is the public URL
-      const logoPath = (req.file as any).path; 
-      // The 'filename' property holds the Cloudinary public_id
-      const publicId = (req.file as any).filename;
+      // The 'path' from multer is now a local server path. We need the public-facing URL.
+      const logoPath = `/logo/${req.file.filename}`;
 
-      // Update the first setting record with the new logo URL
+      // The 'filename' property holds the unique filename
+      const publicId = req.file.filename; // For local storage, this is just the filename
+
+      // Get existing settings to check for old logo
       const settings = await DataRepository.getAllData();
+      let updatedSetting;
+      
       if (settings && settings.length > 0) {
-        // Assuming your Setting model has a field called 'logoPath'
-        await DataRepository.updateData(settings[0].id, { logoPath });
+        // Delete old logo file if it exists
+        const oldLogoPath = settings[0].logoPath;
+        if (oldLogoPath) {
+          // Extract filename from path (e.g., /logo/filename.png -> filename.png)
+          const oldFilename = oldLogoPath.split('/').pop();
+          if (oldFilename) {
+            // Construct full file path (from backend/src -> frontend/public/logo)
+            const oldFilePath = path.join(__dirname, '../../../frontend/public/logo', oldFilename);
+            
+            // Delete the old file if it exists
+            if (fs.existsSync(oldFilePath)) {
+              try {
+                fs.unlinkSync(oldFilePath);
+                console.log('Old logo deleted:', oldFilePath);
+              } catch (deleteError) {
+                console.error('Error deleting old logo:', deleteError);
+                // Continue even if delete fails - don't block the upload
+              }
+            }
+          }
+        }
+        
+        // Update existing record
+        updatedSetting = await DataRepository.updateData(settings[0].id, { logoPath });
+      } else {
+        // Create new record with just the logo path
+        updatedSetting = await DataRepository.createData({ logoPath });
       }
 
       res.json({ 
         message: 'Logo uploaded successfully',
-        logoPath, // Returns the Cloudinary URL
-        publicId, // Can be used for future deletion
+        logoPath, // Returns the public URL path e.g., /logo/image.png
+        publicId, // Returns the filename
+        setting: updatedSetting, // Return the full updated setting
       });
 
     } catch (error) {

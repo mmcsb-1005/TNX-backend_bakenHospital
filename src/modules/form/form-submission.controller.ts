@@ -82,6 +82,14 @@ export class FormSubmissionController {
               include: {
                 fields: true
               }
+            },
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true
+              }
             }
           },
           orderBy: {
@@ -126,6 +134,14 @@ export class FormSubmissionController {
           form: {
             include: {
               fields: true
+            }
+          },
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              role: true
             }
           }
         }
