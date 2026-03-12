@@ -274,7 +274,7 @@ model UserAttendance {
   attendanceDate DateTime
   isPresent      Boolean  @default(false)
   comment        String?
-  
+
   // QR Code Scan Info
   scannedAt      DateTime? // When user scanned QR code
   scannedVia     String?   @default("QR_CODE") // Method: QR_CODE, MANUAL, etc

@@ -3,7 +3,7 @@ dotenv.config();
 import app from './app';
 import { ensureAdmin } from './bootstrap/ensureAdmin';
 
-const port = 3001;
+const port = process.env.PORT || 3001;
 
 (async () => {
   await ensureAdmin();
