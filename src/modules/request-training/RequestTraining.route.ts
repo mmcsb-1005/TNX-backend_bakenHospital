@@ -14,6 +14,7 @@ router.get('/my-approvals', requestTrainingController.getAllRequestsForApprover)
 router.get('/my-trainings', requestTrainingController.getMyTrainings);
 router.get('/:id', requestTrainingController.getRequestTrainingById);
 router.post('/', requestTrainingController.createRequestTraining);
+router.post('/submit-with-training', requestTrainingController.submitTrainingRequest);
 router.put('/:id', requestTrainingController.updateRequestTraining);
 router.delete('/:id', requestTrainingController.deleteRequestTraining);
 router.post('/:id/approve', requestTrainingController.approveRequest);

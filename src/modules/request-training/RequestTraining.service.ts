@@ -1,5 +1,5 @@
 import { RequestTrainingRepository } from './RequestTraining.repository';
-import { CreateRequestTrainingInput, UpdateRequestTrainingInput, ApproveRequestInput, RejectRequestInput } from './RequestTraining.model';
+import { CreateRequestTrainingInput, UpdateRequestTrainingInput, ApproveRequestInput, RejectRequestInput, SubmitTrainingRequestInput } from './RequestTraining.model';
 import { prisma } from '../../lib/prisma';
 
 export class RequestTrainingService {
@@ -319,5 +319,121 @@ export class RequestTrainingService {
     return requestTrainings.sort((a, b) => {
       return new Date(b.training.dateTimeStart).getTime() - new Date(a.training.dateTimeStart).getTime();
     });
+  }
+
+  async submitTrainingRequest(data: SubmitTrainingRequestInput) {
+    // Validate user exists
+    const user = await this.prisma.user.findUnique({
+      where: { id: data.userId },
+    });
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Validate category exists if provided
+    if (data.trainingData.categoryId) {
+      const category = await this.prisma.trainingCategory.findUnique({
+        where: { id: data.trainingData.categoryId },
+      });
+      if (!category) {
+        throw new Error('Training category not found');
+      }
+    }
+
+    // Validate approval user exists if provided
+    if (data.approvalUserId) {
+      const approvalUser = await this.prisma.approvalUser.findUnique({
+        where: { id: data.approvalUserId },
+      });
+      if (!approvalUser) {
+        throw new Error('Approval user not found');
+      }
+    }
+
+    // Calculate duration
+    const startDate = new Date(data.trainingData.dateTimeStart);
+    const endDate = new Date(data.trainingData.dateTimeEnd);
+    const duration = this.calculateDuration(startDate, endDate);
+
+    // Create both Training and RequestTraining in a transaction
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Create Training
+      const training = await tx.training.create({
+        data: {
+          title: data.trainingData.title,
+          organizer: data.trainingData.organizer,
+          trainingType: data.trainingData.trainingType,
+          dateTimeStart: new Date(data.trainingData.dateTimeStart),
+          dateTimeEnd: new Date(data.trainingData.dateTimeEnd),
+          duration: duration,
+          venue: data.trainingData.venue,
+          bond: data.trainingData.bond,
+          typeOfPayment: data.trainingData.typeOfPayment,
+          budgeted: data.trainingData.budgeted,
+          trainingMethod: data.trainingData.trainingMethod,
+          sponsored: data.trainingData.sponsored || null,
+          accommodationCost: data.trainingData.accommodationCost || null,
+          travelCost: data.trainingData.travelCost || null,
+          mealCost: data.trainingData.mealCost || null,
+          comment: data.trainingData.comment || null,
+          categoryId: data.trainingData.categoryId || null,
+        },
+      });
+
+      // Create RequestTraining
+      const requestTraining = await tx.requestTraining.create({
+        data: {
+          requestName: data.requestName,
+          trainingId: training.id,
+          approvalUserId: data.approvalUserId || null,
+          status: 'PENDING',
+          participants: {
+            connect: [{ id: data.userId }],
+          },
+        },
+        include: {
+          training: {
+            include: {
+              category: true,
+            },
+          },
+          participants: {
+            include: {
+              designation: true,
+            },
+          },
+          approvalUser: {
+            include: {
+              trainingCategory: true,
+            },
+          },
+        },
+      });
+
+      return requestTraining;
+    });
+
+    return result;
+  }
+
+  private calculateDuration(startDate: Date, endDate: Date): string {
+    const diffMs = endDate.getTime() - startDate.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
+    const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (diffDays > 0) {
+      if (diffHours > 0) {
+        return `${diffDays} day${diffDays > 1 ? 's' : ''} ${diffHours} hour${diffHours > 1 ? 's' : ''}`;
+      }
+      return `${diffDays} day${diffDays > 1 ? 's' : ''}`;
+    } else if (diffHours > 0) {
+      if (diffMinutes > 0) {
+        return `${diffHours} hour${diffHours > 1 ? 's' : ''} ${diffMinutes} minute${diffMinutes > 1 ? 's' : ''}`;
+      }
+      return `${diffHours} hour${diffHours > 1 ? 's' : ''}`;
+    } else {
+      return `${diffMinutes} minute${diffMinutes > 1 ? 's' : ''}`;
+    }
   }
 }

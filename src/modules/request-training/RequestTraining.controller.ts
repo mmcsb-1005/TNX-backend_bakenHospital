@@ -170,4 +170,29 @@ export class RequestTrainingController {
       next(error);
     }
   };
+
+  submitTrainingRequest = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userId = (req as any).user?.id; // Get from JWT token
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+      }
+
+      const requestTraining = await this.requestTrainingService.submitTrainingRequest({
+        ...req.body,
+        userId: userId, // Use authenticated user ID
+      });
+
+      res.status(201).json({
+        success: true,
+        data: requestTraining,
+        message: 'Training request submitted successfully and is pending approval',
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
 }
