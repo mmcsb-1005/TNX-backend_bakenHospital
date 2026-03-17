@@ -2468,6 +2468,23 @@
         }
       }
     },
+    "/api/admin/request-training/submit-with-training": {
+      "post": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
     "/api/admin/request-training/{id}/approve": {
       "post": {
         "description": "",
