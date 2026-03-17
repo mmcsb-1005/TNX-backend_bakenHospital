@@ -40,13 +40,22 @@ NODE_ENV=production
 
 **Build Command**: 
 ```bash
-npm install && npm run build
+npm run build
 ```
 
 **Start Command**:
 ```bash
 npm start
 ```
+
+**Important Notes**:
+- The build command will automatically:
+  1. Install dependencies
+  2. Generate Prisma Client (creates TypeScript types)
+  3. Run database migrations
+  4. Generate Swagger documentation
+  5. Compile TypeScript to JavaScript
+- Make sure the `postinstall` script runs after npm install to generate Prisma client
 
 **Branch**: `main` or `master` (your default branch)
 
