@@ -27,7 +27,7 @@ model User {
   userOrgId      String?      @unique
   password       String?
 
-  // Relations for staff profile
+  // Relations for staff profilenpm run buid
   staffProfile    StaffProfile?
   reportingStaffs StaffProfile[] @relation("ReportingManager")
 
