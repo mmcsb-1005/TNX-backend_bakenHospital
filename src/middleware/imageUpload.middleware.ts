@@ -12,19 +12,37 @@ import { v4 as uuidv4 } from 'uuid';
 // From backend/src/middleware -> go up to workspace root -> frontend/public/logo
 const logoStoragePath = path.join(__dirname, '../../../frontend/public/logo');
 
+// From backend/src/middleware -> go up to workspace root -> frontend/public/training
+const trainingStoragePath = path.join(__dirname, '../../../frontend/public/training');
+
 // Ensure the logo directory exists
 if (!fs.existsSync(logoStoragePath)) {
   fs.mkdirSync(logoStoragePath, { recursive: true });
 }
 
+if (!fs.existsSync(trainingStoragePath)) {
+  fs.mkdirSync(trainingStoragePath, { recursive: true });
+}
+
 // Log the resolved path for debugging
 console.log('Logo storage path:', logoStoragePath);
+console.log('Training storage path:', trainingStoragePath);
 
 const localLogoStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, logoStoragePath);
   },
   filename: (req, file, cb) => {
+    const uniqueSuffix = `${uuidv4()}${path.extname(file.originalname)}`;
+    cb(null, uniqueSuffix);
+  }
+});
+
+const localTrainingStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, trainingStoragePath);
+  },
+  filename: (_req, file, cb) => {
     const uniqueSuffix = `${uuidv4()}${path.extname(file.originalname)}`;
     cb(null, uniqueSuffix);
   }
@@ -67,6 +85,11 @@ const createUploadMiddleware = (storage: multer.StorageEngine, fieldName: string
  * Middleware for logo upload using LOCAL STORAGE
  */
 export const logoUploadMiddleware = createUploadMiddleware(localLogoStorage, 'logo');
+
+/**
+ * Middleware for training image upload using LOCAL STORAGE
+ */
+export const trainingImageUploadMiddleware = createUploadMiddleware(localTrainingStorage, 'trainingImage');
 
 /**
  * Middleware for staff photo upload using Cloudinary

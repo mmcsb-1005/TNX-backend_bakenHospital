@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { TrainingController } from './Training.controller'
 import { requireAuth } from '../../middleware/auth.middleware'
 import { csvImportMiddleware } from '../../middleware/csvImport.middleware'
+import { trainingImageUploadMiddleware, handleUploadError } from '../../middleware/imageUpload.middleware'
 
 const router = Router()
 
@@ -22,6 +23,9 @@ router.get('/export', TrainingController.exportTrainings)
 
 // POST /api/training/import - Import trainings from CSV
 router.post('/import', csvImportMiddleware, TrainingController.importTrainings)
+
+// POST /api/training/upload-image - Upload training image
+router.post('/upload-image', trainingImageUploadMiddleware, handleUploadError, TrainingController.uploadImage)
 
 // POST /api/training/:id/generate-qr - Generate QR code for training
 router.post('/:id/generate-qr', TrainingController.generateQRCode)

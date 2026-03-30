@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { sync as globSync } from 'glob';
 import fs from 'fs';
+import path from 'path';
 
 import swaggerUi from 'swagger-ui-express';
 import swaggerJSDoc from 'swagger-jsdoc';
@@ -27,6 +28,7 @@ import { requireAuth } from './middleware/auth.middleware'
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use('/training', express.static(path.join(__dirname, '../../frontend/public/training')));
 
 // Swagger Documentation
 app.use('session', express.static('session'));

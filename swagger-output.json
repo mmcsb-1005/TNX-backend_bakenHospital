@@ -1662,6 +1662,9 @@
                 },
                 "comment": {
                   "example": "any"
+                },
+                "imagePath": {
+                  "example": "any"
                 }
               }
             }
@@ -1796,6 +1799,32 @@
           }
         ],
         "responses": {
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/training/upload-image": {
+      "post": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
           "400": {
             "description": "Bad Request"
           },
@@ -1969,6 +1998,9 @@
                   "example": "any"
                 },
                 "comment": {
+                  "example": "any"
+                },
+                "imagePath": {
                   "example": "any"
                 }
               }

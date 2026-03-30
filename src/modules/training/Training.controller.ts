@@ -4,8 +4,38 @@ import { TrainingImportService } from './TrainingImport.service'
 import { TrainingExportService } from './TrainingExport.service'
 import QRCode from 'qrcode'
 import { v4 as uuidv4 } from 'uuid'
+import fs from 'fs'
+import path from 'path'
 
 export class TrainingController {
+  static async uploadImage(req: Request, res: Response) {
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: 'No file uploaded'
+        })
+      }
+
+      const imagePath = `/training/${req.file.filename}`
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          imagePath,
+          filename: req.file.filename
+        },
+        message: 'Training image uploaded successfully'
+      })
+    } catch (error: any) {
+      return res.status(500).json({
+        success: false,
+        message: 'Error uploading training image',
+        error: error.message
+      })
+    }
+  }
+
   // Get all trainings
   static async getAllTrainings(req: Request, res: Response) {
     try {
@@ -101,7 +131,8 @@ export class TrainingController {
         travelCost,
         mealCost,
         trainingMethod,
-        comment
+        comment,
+        imagePath
       } = req.body
 
       // Validate required fields
@@ -143,7 +174,8 @@ export class TrainingController {
           travelCost: travelCost ? Number(travelCost) : null,
           mealCost: mealCost ? Number(mealCost) : null,
           trainingMethod,
-          comment
+          comment,
+          imagePath: imagePath || null
         }
       })
 
@@ -181,7 +213,8 @@ export class TrainingController {
         travelCost,
         mealCost,
         trainingMethod,
-        comment
+        comment,
+        imagePath
       } = req.body
 
       // Check if training exists
@@ -212,6 +245,21 @@ export class TrainingController {
         duration = TrainingController.calculateDuration(startDate, endDate)
       }
 
+      // If uploading a new image, remove old image from frontend/public/training
+      if (imagePath && existingTraining.imagePath && existingTraining.imagePath !== imagePath) {
+        const oldFilename = existingTraining.imagePath.split('/').pop()
+        if (oldFilename) {
+          const oldFilePath = path.join(__dirname, '../../../frontend/public/training', oldFilename)
+          if (fs.existsSync(oldFilePath)) {
+            try {
+              fs.unlinkSync(oldFilePath)
+            } catch (_deleteErr) {
+              // Do not fail update if cleanup fails
+            }
+          }
+        }
+      }
+
       const training = await prisma.training.update({
         where: { id: id as string },
         data: {
@@ -230,7 +278,8 @@ export class TrainingController {
           ...(travelCost !== undefined && { travelCost: travelCost ? parseFloat(travelCost) : null }),
           ...(mealCost !== undefined && { mealCost: mealCost ? parseFloat(mealCost) : null }),
           ...(trainingMethod && { trainingMethod }),
-          ...(comment !== undefined && { comment })
+          ...(comment !== undefined && { comment }),
+          ...(imagePath !== undefined && { imagePath: imagePath || null })
         }
       })
 
@@ -262,6 +311,20 @@ export class TrainingController {
           success: false,
           message: 'Training not found'
         })
+      }
+
+      if (existingTraining.imagePath) {
+        const oldFilename = existingTraining.imagePath.split('/').pop()
+        if (oldFilename) {
+          const oldFilePath = path.join(__dirname, '../../../frontend/public/training', oldFilename)
+          if (fs.existsSync(oldFilePath)) {
+            try {
+              fs.unlinkSync(oldFilePath)
+            } catch (_deleteErr) {
+              // Ignore cleanup errors during delete flow
+            }
+          }
+        }
       }
 
       await prisma.training.delete({
