@@ -1,10 +1,12 @@
 import { Request, Response } from 'express';
 import { AuthService } from './Auth.service';
 import { AuthRepository } from './Auth.repository';
-import { LoginRequest, ForgotPasswordRequest, ResetPasswordRequest } from './Auth.model';
+import { LoginRequest, ForgotPasswordRequest, ResetPasswordRequest, AdminSignupRequest } from './Auth.model';
 
 interface AuthController {
   login(req: Request, res: Response): Promise<void>;
+  signupAdmin(req: Request, res: Response): Promise<void>;
+  logout(req: Request, res: Response): Promise<void>;
   profile(req: any, res: Response): Promise<void>;
   forgotPassword(req: Request, res: Response): Promise<void>; // NEW
   resetPassword(req: Request, res: Response): Promise<void>;
@@ -32,6 +34,36 @@ class AuthControllerImpl implements AuthController {
         error: error instanceof Error ? error.message : 'Login failed' 
       });
     }
+  }
+
+  async signupAdmin(req: Request, res: Response): Promise<void> {
+    try {
+      const data: AdminSignupRequest = req.body;
+
+      if (!data.email) {
+        res.status(400).json({ error: 'Email is required' });
+        return;
+      }
+
+      if (!data.password) {
+        res.status(400).json({ error: 'Password is required' });
+        return;
+      }
+
+      const result = await AuthService.signupAdmin(data);
+      res.status(201).json(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Admin signup failed';
+      const status = message.includes('already exists') || message.includes('already in use') ? 409 : 400;
+      res.status(status).json({ error: message });
+    }
+  }
+
+  async logout(_req: Request, res: Response): Promise<void> {
+    res.status(200).json({
+      success: true,
+      message: 'Logout successful',
+    });
   }
 
   async profile(req: any, res: Response): Promise<void> {

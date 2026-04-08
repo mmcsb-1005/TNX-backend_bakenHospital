@@ -3,6 +3,7 @@ import { prisma } from '../../lib/prisma'
 
 interface TrainingImportRow {
   title: string
+  description?: string
   organizer: string
   trainingType: string
   dateTimeStart: string
@@ -17,6 +18,9 @@ interface TrainingImportRow {
   mealCost?: string
   trainingMethod: string
   comment?: string
+  objectives?: string
+  courseCurriculum?: string
+  faqs?: string
 }
 
 interface ImportResult {
@@ -133,6 +137,7 @@ export class TrainingImportService {
         await prisma.training.create({
           data: {
             title: row.title.trim(),
+            description: row.description?.trim() || null,
             organizer: row.organizer.trim(),
             trainingType: row.trainingType.trim() as TrainingType,
             dateTimeStart: startDate,
@@ -147,7 +152,10 @@ export class TrainingImportService {
             travelCost: row.travelCost ? Number(row.travelCost) : null,
             mealCost: row.mealCost ? Number(row.mealCost) : null,
             trainingMethod: row.trainingMethod.trim() as TrainingMethod,
-            comment: row.comment?.trim() || null
+            comment: row.comment?.trim() || null,
+            objectives: row.objectives?.trim() || null,
+            courseCurriculum: row.courseCurriculum?.trim() || null,
+            faqs: row.faqs?.trim() || null
           }
         })
 
@@ -173,6 +181,7 @@ export class TrainingImportService {
   static getTemplateHeaders(): string[] {
     return [
       'title',
+      'description',
       'organizer',
       'trainingType',
       'dateTimeStart',
@@ -186,7 +195,10 @@ export class TrainingImportService {
       'travelCost',
       'mealCost',
       'trainingMethod',
-      'comment'
+      'comment',
+      'objectives',
+      'courseCurriculum',
+      'faqs'
     ]
   }
 
@@ -197,6 +209,7 @@ export class TrainingImportService {
     return [
       {
         title: 'Leadership Training',
+        description: 'A practical leadership programme focused on team management, communication, and decision-making skills.',
         organizer: 'HR Department',
         trainingType: 'IN_HOUSE',
         dateTimeStart: '2026-03-01 09:00',
@@ -210,10 +223,14 @@ export class TrainingImportService {
         travelCost: '200',
         mealCost: '150',
         trainingMethod: 'CASH_IN_ADVANCE',
-        comment: 'Mandatory for all managers'
+        comment: 'Mandatory for all managers',
+        objectives: 'Develop leadership capability for team management and communication.',
+        courseCurriculum: 'Module 1: Leadership Fundamentals; Module 2: Communication Skills; Module 3: Decision-Making Practice.',
+        faqs: 'Prerequisite: Minimum 1 year supervisory experience. FAQ: Is certification provided? Yes.'
       },
       {
         title: 'Technical Workshop',
+        description: 'Hands-on workshop for improving technical problem-solving and tool usage in daily operations.',
         organizer: 'IT Department',
         trainingType: 'EXTERNAL',
         dateTimeStart: '2026-03-15 10:00',
@@ -227,7 +244,10 @@ export class TrainingImportService {
         travelCost: '100',
         mealCost: '50',
         trainingMethod: 'PAY_AND_CLAIM',
-        comment: ''
+        comment: '',
+        objectives: 'Improve practical troubleshooting and tooling efficiency.',
+        courseCurriculum: 'Session 1: Tool Setup; Session 2: Guided Exercises; Session 3: Real-Case Scenarios.',
+        faqs: 'Prerequisite: Basic system operations knowledge. FAQ: Can beginners join? Yes.'
       }
     ]
   }

@@ -3,6 +3,7 @@ import { stringify } from 'csv-stringify';
 
 const TRAINING_EXPORT_HEADERS = [
     'Title',
+    'Description',
     'Organizer',
     'Training Type',
     'Start Date',
@@ -19,6 +20,9 @@ const TRAINING_EXPORT_HEADERS = [
     'Training Method',
     'Category',
     'Comment',
+    'FAQs',
+    'Objectives',
+    'Course Curriculum'
 ];
 
 export const TrainingExportService = {
@@ -32,6 +36,7 @@ export const TrainingExportService = {
 
         const records = trainingData.map(training => [
             training.title,
+            training.description || '',
             training.organizer,
             training.trainingType,
             training.dateTimeStart ? new Date(training.dateTimeStart).toISOString() : '',
@@ -48,6 +53,10 @@ export const TrainingExportService = {
             training.trainingMethod,
             training.category?.name || '',
             training.comment || '',
+            training.faqs || '',
+            training.objectives || '',
+            training.courseCurriculum || ''
+
         ]);
 
         records.unshift(TRAINING_EXPORT_HEADERS);

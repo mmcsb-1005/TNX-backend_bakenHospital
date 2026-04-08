@@ -28,6 +28,7 @@ import { requireAuth } from './middleware/auth.middleware'
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use('/logo', express.static(path.join(__dirname, '../../frontend/public/logo')));
 app.use('/training', express.static(path.join(__dirname, '../../frontend/public/training')));
 
 // Swagger Documentation

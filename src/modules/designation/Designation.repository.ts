@@ -14,7 +14,7 @@ export class DesignationRepository {
         level: data.level || 1,
       },
       include: {
-        users: true,
+        _count: { select: { users: true } },
         parent: true,
         children: true,
       },
@@ -24,7 +24,7 @@ export class DesignationRepository {
   async findAll() {
     return await this.prisma.designation.findMany({
       include: {
-        users: true,
+        _count: { select: { users: true } },
         parent: true,
         children: true,
       },
@@ -38,7 +38,7 @@ export class DesignationRepository {
     return await this.prisma.designation.findUnique({
       where: { id },
       include: {
-        users: true,
+        _count: { select: { users: true } },
         parent: true,
         children: true,
       },
@@ -50,7 +50,7 @@ export class DesignationRepository {
       where: { id },
       data,
       include: {
-        users: true,
+        _count: { select: { users: true } },
         parent: true,
         children: true,
       },

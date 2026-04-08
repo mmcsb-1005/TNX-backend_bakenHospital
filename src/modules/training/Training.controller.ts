@@ -7,6 +7,17 @@ import { v4 as uuidv4 } from 'uuid'
 import fs from 'fs'
 import path from 'path'
 
+const getAuthenticatedUserId = (req: Request) => req.user?.id
+
+const mapTrainingWithBookmarkState = <T extends { bookmarks?: { id: string }[] }>(training: T) => {
+  const { bookmarks, ...trainingData } = training
+
+  return {
+    ...trainingData,
+    isBookmarked: Boolean(bookmarks?.length)
+  }
+}
+
 export class TrainingController {
   static async uploadImage(req: Request, res: Response) {
     try {
@@ -39,7 +50,16 @@ export class TrainingController {
   // Get all trainings
   static async getAllTrainings(req: Request, res: Response) {
     try {
+      const userId = getAuthenticatedUserId(req)
       const trainings = await prisma.training.findMany({
+        include: {
+          bookmarks: userId
+            ? {
+                where: { userId },
+                select: { id: true }
+              }
+            : false
+        },
         orderBy: {
           createdAt: 'desc'
         }
@@ -47,7 +67,7 @@ export class TrainingController {
 
       return res.status(200).json({
         success: true,
-        data: trainings,
+        data: trainings.map(mapTrainingWithBookmarkState),
         message: 'Trainings retrieved successfully'
       })
     } catch (error: any) {
@@ -63,8 +83,17 @@ export class TrainingController {
   static async getTrainingById(req: Request, res: Response) {
     try {
       const { id } = req.params
+      const userId = getAuthenticatedUserId(req)
       const training = await prisma.training.findUnique({
-        where: { id: id as string }
+        where: { id: id as string },
+        include: {
+          bookmarks: userId
+            ? {
+                where: { userId },
+                select: { id: true }
+              }
+            : false
+        }
       })
 
       if (!training) {
@@ -76,13 +105,114 @@ export class TrainingController {
 
       return res.status(200).json({
         success: true,
-        data: training,
+        data: mapTrainingWithBookmarkState(training),
         message: 'Training retrieved successfully'
       })
     } catch (error: any) {
       return res.status(500).json({
         success: false,
         message: 'Error retrieving training',
+        error: error.message
+      })
+    }
+  }
+
+  static async addBookmark(req: Request, res: Response) {
+    try {
+      const userId = getAuthenticatedUserId(req)
+      const { id } = req.params
+
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Unauthorized'
+        })
+      }
+
+      const training = await prisma.training.findUnique({
+        where: { id: id as string }
+      })
+
+      if (!training) {
+        return res.status(404).json({
+          success: false,
+          message: 'Training not found'
+        })
+      }
+
+      await prisma.trainingBookmark.upsert({
+        where: {
+          userId_trainingId: {
+            userId,
+            trainingId: id as string
+          }
+        },
+        update: {},
+        create: {
+          userId,
+          trainingId: id as string
+        }
+      })
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          trainingId: id,
+          isBookmarked: true
+        },
+        message: 'Training bookmarked successfully'
+      })
+    } catch (error: any) {
+      return res.status(500).json({
+        success: false,
+        message: 'Error bookmarking training',
+        error: error.message
+      })
+    }
+  }
+
+  static async removeBookmark(req: Request, res: Response) {
+    try {
+      const userId = getAuthenticatedUserId(req)
+      const { id } = req.params
+
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Unauthorized'
+        })
+      }
+
+      const training = await prisma.training.findUnique({
+        where: { id: id as string }
+      })
+
+      if (!training) {
+        return res.status(404).json({
+          success: false,
+          message: 'Training not found'
+        })
+      }
+
+      await prisma.trainingBookmark.deleteMany({
+        where: {
+          userId,
+          trainingId: id as string
+        }
+      })
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          trainingId: id,
+          isBookmarked: false
+        },
+        message: 'Training bookmark removed successfully'
+      })
+    } catch (error: any) {
+      return res.status(500).json({
+        success: false,
+        message: 'Error removing training bookmark',
         error: error.message
       })
     }
@@ -118,6 +248,7 @@ export class TrainingController {
       
       const {
         title,
+        description,
         organizer,
         trainingType,
         dateTimeStart,
@@ -132,6 +263,9 @@ export class TrainingController {
         mealCost,
         trainingMethod,
         comment,
+        objectives,
+        courseCurriculum,
+        faqs,
         imagePath
       } = req.body
 
@@ -160,6 +294,7 @@ export class TrainingController {
       const training = await prisma.training.create({
         data: {
           title,
+          description,
           organizer,
           trainingType,
           dateTimeStart: startDate,
@@ -175,6 +310,9 @@ export class TrainingController {
           mealCost: mealCost ? Number(mealCost) : null,
           trainingMethod,
           comment,
+          objectives,
+          courseCurriculum,
+          faqs,
           imagePath: imagePath || null
         }
       })
@@ -200,6 +338,7 @@ export class TrainingController {
       const { id } = req.params
       const {
         title,
+        description,
         organizer,
         trainingType,
         dateTimeStart,
@@ -214,6 +353,9 @@ export class TrainingController {
         mealCost,
         trainingMethod,
         comment,
+        objectives,
+        courseCurriculum,
+        faqs,
         imagePath
       } = req.body
 
@@ -264,6 +406,7 @@ export class TrainingController {
         where: { id: id as string },
         data: {
           ...(title && { title }),
+          ...(description !== undefined && { description }),
           ...(organizer && { organizer }),
           ...(trainingType && { trainingType }),
           ...(dateTimeStart && { dateTimeStart: new Date(dateTimeStart) }),
@@ -279,6 +422,9 @@ export class TrainingController {
           ...(mealCost !== undefined && { mealCost: mealCost ? parseFloat(mealCost) : null }),
           ...(trainingMethod && { trainingMethod }),
           ...(comment !== undefined && { comment }),
+          ...(objectives !== undefined && { objectives }),
+          ...(courseCurriculum !== undefined && { courseCurriculum }),
+          ...(faqs !== undefined && { faqs }),
           ...(imagePath !== undefined && { imagePath: imagePath || null })
         }
       })

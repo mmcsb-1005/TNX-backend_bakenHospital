@@ -36,6 +36,17 @@ interface MailService {
     to: string,
     variables: Record<string, string>
   ): Promise<nodemailer.SentMessageInfo>;
+  sendTrainingApprovalNotification(
+    to: string,
+    payload: {
+      approverName: string;
+      requestName: string;
+      trainingTitle: string;
+      submittedBy: string;
+      submittedAt: string;
+      approvalUrl: string;
+    }
+  ): Promise<nodemailer.SentMessageInfo>;
   sendContactMessage(
     from: string,
     name: string,
@@ -71,6 +82,41 @@ class MailServiceImpl implements MailService {
       to: to,
       subject: subject,
       html: htmlBody, // The HTML content from your template body
+    });
+  }
+
+  async sendTrainingApprovalNotification(
+    to: string,
+    payload: {
+      approverName: string;
+      requestName: string;
+      trainingTitle: string;
+      submittedBy: string;
+      submittedAt: string;
+      approvalUrl: string;
+    }
+  ): Promise<nodemailer.SentMessageInfo> {
+    return await transporter.sendMail({
+      from: process.env.MAIL_FROM || 'no-reply@app.com',
+      to,
+      subject: `Approval Required: ${payload.requestName}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 10px;">
+          <h2 style="margin: 0 0 14px; color: #111827;">Training Request Needs Your Approval</h2>
+          <p style="margin: 0 0 16px; color: #374151;">Hi ${payload.approverName}, there is a new training request waiting for your review.</p>
+
+          <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; margin-bottom: 16px;">
+            <p style="margin: 0 0 8px;"><strong>Request:</strong> ${payload.requestName}</p>
+            <p style="margin: 0 0 8px;"><strong>Training:</strong> ${payload.trainingTitle}</p>
+            <p style="margin: 0 0 8px;"><strong>Submitted By:</strong> ${payload.submittedBy}</p>
+            <p style="margin: 0;"><strong>Submitted At:</strong> ${payload.submittedAt}</p>
+          </div>
+
+          <a href="${payload.approvalUrl}" style="display: inline-block; background: #2563eb; color: #ffffff; text-decoration: none; padding: 10px 14px; border-radius: 8px; font-weight: 600;">Review Request</a>
+
+          <p style="margin-top: 18px; color: #6b7280; font-size: 12px;">This is an automated notification from the training system.</p>
+        </div>
+      `,
     });
   }
 

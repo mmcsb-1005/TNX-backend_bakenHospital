@@ -10,7 +10,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -37,6 +36,7 @@ model User {
   
   // User attendance for trainings
   userAttendances    UserAttendance[]
+  trainingBookmarks  TrainingBookmark[]
   
   // Form submissions
   formSubmissions FormSubmission[]
@@ -83,6 +83,7 @@ model StaffProfile {
 model Training {
   id                String         @id @default(cuid())
   title             String
+  description       String?        @db.Text
   organizer         String
   trainingType      TrainingType
   dateTimeStart     DateTime
@@ -98,6 +99,9 @@ model Training {
   mealCost          Decimal?       @db.Decimal(10, 2)
   trainingMethod    TrainingMethod
   comment           String?        @db.Text
+  objectives        String?        @db.Text
+  courseCurriculum  String?        @db.Text
+  faqs              String?        @db.Text
   imagePath         String?
 
   // QR Code Attendance
@@ -110,9 +114,22 @@ model Training {
   category         TrainingCategory? @relation(fields: [categoryId], references: [id])
   requestTrainings RequestTraining[]
   attendances      UserAttendance[]
+  bookmarks        TrainingBookmark[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model TrainingBookmark {
+  id         String   @id @default(cuid())
+  userId     String
+  trainingId String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  training   Training @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, trainingId])
+  @@index([trainingId])
 }
 
 enum TrainingType {
@@ -177,6 +194,7 @@ enum MailType {
   PASSWORD_RESET
   WELCOME_USER
   GENERAL_ANNOUNCEMENT
+  REQUEST_APPROVAL
 }
 
 enum SendTrigger {

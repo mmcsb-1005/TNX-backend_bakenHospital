@@ -131,6 +131,45 @@ async function main() {
         console.log('ℹ️ Sample users already exist, skipping.');
     }
 
+    // 6. Seed dummy request approval email template (for mail delivery testing)
+    const requestApprovalTemplate = await prisma.mail.findFirst({
+        where: { mailType: 'REQUEST_APPROVAL' as any }
+    });
+
+    if (!requestApprovalTemplate) {
+        await prisma.mail.create({
+            data: {
+                name: 'Request Approval Dummy Template',
+                subject: 'Approval Required: {{requestName}}',
+                body: `
+                    <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 10px;">
+                        <h2 style="margin: 0 0 14px; color: #111827;">Training Request Needs Your Approval</h2>
+                        <p style="margin: 0 0 16px; color: #374151;">Hi {{approverName}}, this is a test template to verify email delivery.</p>
+                        <p><strong>Request:</strong> {{requestName}}</p>
+                        <p><strong>Training:</strong> {{trainingTitle}}</p>
+                        <p><strong>Submitted By:</strong> {{submittedBy}}</p>
+                        <p><strong>Submitted At:</strong> {{submittedAt}}</p>
+                        <p><a href="{{approvalUrl}}">Open approval page</a></p>
+                    </div>
+                `,
+                mailType: 'REQUEST_APPROVAL' as any,
+                sendTrigger: 'MANUAL',
+                templateVariables: {
+                    approverName: 'Name of approver',
+                    requestName: 'Request title',
+                    trainingTitle: 'Training title',
+                    submittedBy: 'Requester name',
+                    submittedAt: 'Submission datetime',
+                    approvalUrl: 'Approval page URL',
+                },
+                isActive: true,
+            }
+        });
+        console.log('✅ Seed: request approval dummy mail template created');
+    } else {
+        console.log('ℹ️ Request approval mail template already exists, skipping.');
+    }
+
     console.log('--- Seed Process Completed ---');
 }
 

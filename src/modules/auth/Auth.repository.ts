@@ -3,6 +3,8 @@ import { User, PasswordResetToken } from "./Auth.model";
 interface AuthRepository {
   findUserByEmail(email: string): Promise<any>;
   findUserById(id: string): Promise<any>;
+  countAdminUsers(): Promise<number>;
+  createAdminUser(data: { email: string; name?: string; password: string }): Promise<any>;
   createResetToken(userId: string, token: string, expiresAt: Date): Promise<void>;
   findValidResetToken(token: string): Promise<any>;
   updateUserPassword(userId: string, hashedPassword: string): Promise<void>;
@@ -25,6 +27,31 @@ class AuthRepositoryImpl implements AuthRepository {
   async findUserById(id: string): Promise<any> {
     return await User.findUnique({
       where: { id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+      },
+    });
+  }
+
+  async countAdminUsers(): Promise<number> {
+    return await User.count({
+      where: {
+        role: 'ADMIN',
+      },
+    });
+  }
+
+  async createAdminUser(data: { email: string; name?: string; password: string }): Promise<any> {
+    return await User.create({
+      data: {
+        email: data.email,
+        name: data.name,
+        password: data.password,
+        role: 'ADMIN',
+      },
       select: {
         id: true,
         email: true,

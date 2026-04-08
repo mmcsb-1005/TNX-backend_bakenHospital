@@ -10,6 +10,22 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface AdminSignupRequest {
+  name?: string;
+  email: string;
+  password: string;
+}
+
+export interface AdminSignupResponse {
+  message: string;
+  user: {
+    id: string;
+    email?: string;
+    name?: string;
+    role: string;
+  };
+}
+
 export interface LoginResponse {
   message: string;
   user: {

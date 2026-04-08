@@ -40,6 +40,7 @@ export interface SubmitTrainingRequestInput {
   userId: string; // The user submitting the request
   trainingData: {
     title: string;
+    description?: string;
     organizer: string;
     trainingType: 'IN_HOUSE' | 'EXTERNAL' | 'ONLINE';
     dateTimeStart: string;

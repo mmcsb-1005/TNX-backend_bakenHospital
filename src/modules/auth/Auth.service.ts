@@ -2,12 +2,13 @@ import jwt from 'jsonwebtoken';
 import * as bcrypt from 'bcryptjs';
 import crypto from 'crypto'; // Import for secure token generation
 import { AuthRepository } from './Auth.repository';
-import { JwtPayload, LoginRequest, LoginResponse, ForgotPasswordRequest, ResetPasswordRequest, PasswordResetToken } from './Auth.model';
+import { JwtPayload, LoginRequest, LoginResponse, ForgotPasswordRequest, ResetPasswordRequest, PasswordResetToken, AdminSignupRequest, AdminSignupResponse } from './Auth.model';
 import { MailService } from '../mail/Mail.service'; // Import the MailService
 import { MailType } from '@prisma/client'; // Import MailType enum
 
 interface AuthService {
   login(loginData: LoginRequest): Promise<LoginResponse>;
+  signupAdmin(data: AdminSignupRequest): Promise<AdminSignupResponse>;
   generateToken(payload: JwtPayload): string;
   verifyToken(token: string): JwtPayload;
   hashPassword(password: string): Promise<string>;
@@ -76,6 +77,42 @@ class AuthServiceImpl implements AuthService {
       },
       token,
       redirectPath
+    };
+  }
+
+  async signupAdmin(data: AdminSignupRequest): Promise<AdminSignupResponse> {
+    const email = data.email?.trim().toLowerCase();
+    const name = data.name?.trim() || 'System Admin';
+    const password = data.password;
+
+    if (!email) {
+      throw new Error('Email is required');
+    }
+
+    if (!password || password.length < 8) {
+      throw new Error('Password must be at least 8 characters long');
+    }
+
+    const adminCount = await AuthRepository.countAdminUsers();
+    if (adminCount > 0) {
+      throw new Error('Admin account already exists. Please log in.');
+    }
+
+    const existingUser = await AuthRepository.findUserByEmail(email);
+    if (existingUser) {
+      throw new Error('Email is already in use');
+    }
+
+    const hashedPassword = await this.hashPassword(password);
+    const user = await AuthRepository.createAdminUser({
+      email,
+      name,
+      password: hashedPassword,
+    });
+
+    return {
+      message: 'Admin account created successfully',
+      user,
     };
   }
 

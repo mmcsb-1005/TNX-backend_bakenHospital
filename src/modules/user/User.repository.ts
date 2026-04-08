@@ -55,8 +55,45 @@ class UserRepositoryImpl implements UserRepository {
     return await prisma.user.create({ data: payload });
   }
 
-  async updateUser(id: string, data: Prisma.UserUpdateInput): Promise<any> {
-    const payload: Prisma.UserUpdateInput = { ...data };
+  async updateUser(id: string, data: Prisma.UserUncheckedUpdateInput): Promise<any> {
+    const payload: Prisma.UserUncheckedUpdateInput = {
+      email: data.email,
+      name: data.name,
+      image: data.image,
+      position: data.position,
+      designationId: data.designationId,
+      contactNumber: data.contactNumber,
+      employmentDate: data.employmentDate,
+      role: data.role,
+      userOrgId: data.userOrgId,
+      password: data.password,
+    };
+
+    // Normalize optional scalar fields from form payloads.
+    if (payload.designationId === '') {
+      payload.designationId = null;
+    }
+
+    if (payload.contactNumber === '') {
+      payload.contactNumber = null;
+    }
+
+    if (payload.userOrgId === '') {
+      payload.userOrgId = null;
+    }
+
+    if (payload.image === '') {
+      payload.image = null;
+    }
+
+    if (payload.employmentDate === '') {
+      payload.employmentDate = null;
+    }
+
+    if (typeof payload.employmentDate === 'string') {
+      payload.employmentDate = new Date(payload.employmentDate);
+    }
+
     if (payload.password && typeof payload.password === 'string') {
       payload.password = await hashPasswordIfNeeded(payload.password);
     }

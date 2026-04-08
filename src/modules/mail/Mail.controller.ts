@@ -12,37 +12,58 @@ interface DataController {
 }
 
 class DataControllerImpl implements DataController {
-  async getAllData(req: Request, res: Response): Promise<void> {
+  private static readonly CACHE_TTL_MS = 60_000;
+  private mailListCache: { data: unknown[]; expiresAt: number } | null = null;
+
+  private invalidateMailListCache(): void {
+    this.mailListCache = null;
+  }
+
+  getAllData = async (req: Request, res: Response): Promise<void> => {
+    const now = Date.now();
+    if (this.mailListCache && this.mailListCache.expiresAt > now) {
+      res.json(this.mailListCache.data);
+      return;
+    }
+
     const result = await MailRepository.findAll();
+    this.mailListCache = {
+      data: result,
+      expiresAt: now + DataControllerImpl.CACHE_TTL_MS,
+    };
+
     res.json(result);
   }
 
-  async getDataById(req: Request, res: Response): Promise<void> {
+  getDataById = async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id as string;
     const result = await MailRepository.findById(id);
     res.json(result);
   }
 
-  async createData(req: Request, res: Response): Promise<void> {
+  createData = async (req: Request, res: Response): Promise<void> => {
     const data = req.body;
     const result = await MailRepository.create(data);
+    this.invalidateMailListCache();
     res.json(result);
   }
 
-  async updateData(req: Request, res: Response): Promise<void> {
+  updateData = async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id as string;
     const data = req.body;
     const result = await MailRepository.update(id, data);
+    this.invalidateMailListCache();
     res.json(result);
   }
 
-  async deleteData(req: Request, res: Response): Promise<void> {
+  deleteData = async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id as string;
     await MailRepository.delete(id);
+    this.invalidateMailListCache();
     res.json({ message: 'Mail deleted successfully' });
   }
 
-  async sendContactMessage(req: Request, res: Response): Promise<void> {
+  sendContactMessage = async (req: Request, res: Response): Promise<void> => {
     try {
       const { name, email, subject, message } = req.body;
       

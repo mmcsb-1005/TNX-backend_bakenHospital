@@ -1,6 +1,8 @@
 import { RequestTrainingRepository } from './RequestTraining.repository';
 import { CreateRequestTrainingInput, UpdateRequestTrainingInput, ApproveRequestInput, RejectRequestInput, SubmitTrainingRequestInput } from './RequestTraining.model';
 import { prisma } from '../../lib/prisma';
+import { MailService } from '../mail/Mail.service';
+import { MailType, Prisma } from '@prisma/client';
 
 export class RequestTrainingService {
   private requestTrainingRepository: RequestTrainingRepository;
@@ -37,7 +39,11 @@ export class RequestTrainingService {
       throw new Error('Some participants not found');
     }
 
-    return await this.requestTrainingRepository.create(data);
+    const requestTraining = await this.requestTrainingRepository.create(data);
+
+    await this.notifyApproversForRequest(requestTraining.id);
+
+    return requestTraining;
   }
 
   async getRequestTrainings() {
@@ -361,6 +367,7 @@ export class RequestTrainingService {
       const training = await tx.training.create({
         data: {
           title: data.trainingData.title,
+          description: data.trainingData.description || null,
           organizer: data.trainingData.organizer,
           trainingType: data.trainingData.trainingType,
           dateTimeStart: new Date(data.trainingData.dateTimeStart),
@@ -413,7 +420,142 @@ export class RequestTrainingService {
       return requestTraining;
     });
 
+    await this.notifyApproversForRequest(result.id);
+
     return result;
+  }
+
+  async sendNotification(requestId: string) {
+    await this.getRequestTrainingById(requestId);
+    await this.notifyApproversForRequest(requestId, { failOnError: true });
+  }
+
+  private async ensureRequestApprovalTemplate(): Promise<void> {
+    const requestApprovalType = 'REQUEST_APPROVAL' as MailType;
+
+    const existingTemplate = await this.prisma.mail.findFirst({
+      where: { mailType: requestApprovalType },
+    });
+
+    if (existingTemplate) {
+      return;
+    }
+
+    await this.prisma.mail.create({
+      data: {
+        name: 'Request Approval Dummy Template',
+        mailType: requestApprovalType,
+        sendTrigger: 'MANUAL',
+        subject: 'Approval Required: {{requestName}}',
+        body: `
+          <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 10px;">
+            <h2 style="margin: 0 0 14px; color: #111827;">Training Request Needs Your Approval</h2>
+            <p style="margin: 0 0 16px; color: #374151;">Hi {{approverName}}, there is a new training request waiting for your review.</p>
+            <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; margin-bottom: 16px;">
+              <p style="margin: 0 0 8px;"><strong>Request:</strong> {{requestName}}</p>
+              <p style="margin: 0 0 8px;"><strong>Training:</strong> {{trainingTitle}}</p>
+              <p style="margin: 0 0 8px;"><strong>Submitted By:</strong> {{submittedBy}}</p>
+              <p style="margin: 0;"><strong>Submitted At:</strong> {{submittedAt}}</p>
+            </div>
+            <a href="{{approvalUrl}}" style="display: inline-block; background: #2563eb; color: #ffffff; text-decoration: none; padding: 10px 14px; border-radius: 8px; font-weight: 600;">Review Request</a>
+            <p style="margin-top: 18px; color: #6b7280; font-size: 12px;">This is a dummy template for delivery testing.</p>
+          </div>
+        `,
+        templateVariables: {
+          approverName: 'Name of approver',
+          requestName: 'Request title',
+          trainingTitle: 'Training title',
+          submittedBy: 'Requester name',
+          submittedAt: 'Submission datetime',
+          approvalUrl: 'Approval page URL',
+        } as Prisma.InputJsonValue,
+        isActive: true,
+      },
+    });
+  }
+
+  private async notifyApproversForRequest(
+    requestId: string,
+    options: { failOnError?: boolean } = {}
+  ): Promise<void> {
+    try {
+      await this.ensureRequestApprovalTemplate();
+
+      const request = await this.prisma.requestTraining.findUnique({
+        where: { id: requestId },
+        include: {
+          training: true,
+          participants: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          approvalUser: {
+            include: {
+              approvedBy: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!request || !request.approvalUser) {
+        if (options.failOnError) {
+          throw new Error('No approval user configured for this request.');
+        }
+        return;
+      }
+
+      const approvers = request.approvalUser.approvedBy.filter((user) => !!user.email);
+      if (approvers.length === 0) {
+        if (options.failOnError) {
+          throw new Error('No approver email found in selected approval user.');
+        }
+        return;
+      }
+
+      const requesterName = request.participants[0]?.name || 'Staff';
+      const frontendBaseUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
+      const approvalUrl = `${frontendBaseUrl.replace(/\/$/, '')}/users/approvel/view/${request.id}`;
+
+      const formattedSubmittedAt = new Date(request.createdAt).toLocaleString('en-MY', {
+        timeZone: 'Asia/Kuala_Lumpur',
+      });
+
+      const sendResults = await Promise.allSettled(
+        approvers.map((approver) =>
+          MailService.sendTemplateMail('REQUEST_APPROVAL' as MailType, approver.email as string, {
+            approverName: approver.name || 'Approver',
+            requestName: request.requestName,
+            trainingTitle: request.training.title,
+            submittedBy: requesterName,
+            submittedAt: formattedSubmittedAt,
+            approvalUrl,
+          })
+        )
+      );
+
+      if (options.failOnError) {
+        const failedCount = sendResults.filter((result) => result.status === 'rejected').length;
+        if (failedCount === sendResults.length) {
+          throw new Error('Failed to send approval notification emails. Please check SMTP settings and recipient addresses.');
+        }
+      }
+    } catch (error) {
+      if (options.failOnError) {
+        throw error;
+      }
+
+      // Do not block request creation when email delivery fails.
+      console.error('Failed to send training approval notifications:', error);
+    }
   }
 
   private calculateDuration(startDate: Date, endDate: Date): string {

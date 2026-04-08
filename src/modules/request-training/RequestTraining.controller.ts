@@ -195,4 +195,18 @@ export class RequestTrainingController {
       next(error);
     }
   };
+
+  sendNotification = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      await this.requestTrainingService.sendNotification(id as string);
+
+      res.status(200).json({
+        success: true,
+        message: 'Email notification sent successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
 }

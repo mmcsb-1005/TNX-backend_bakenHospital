@@ -42,10 +42,33 @@ class UserControllerImpl implements UserController {
   }
 
   async updateUser(req: Request, res: Response): Promise<void> {
-    const id = req.params.id as string;
-    const data = req.body;
-    const User = await UserRepository.updateUser(id, data);
-    res.json(User);
+    try {
+      const id = req.params.id as string;
+      const data = req.body;
+      const User = await UserRepository.updateUser(id, data);
+      res.json(User);
+    } catch (error) {
+      console.error('Update user error:', error);
+
+      const message = error instanceof Error ? error.message : 'Failed to update user';
+
+      if (message.includes('Unique constraint failed')) {
+        res.status(409).json({ error: 'Email or staff ID already exists' });
+        return;
+      }
+
+      if (message.includes('Foreign key constraint failed')) {
+        res.status(400).json({ error: 'Selected designation is invalid' });
+        return;
+      }
+
+      if (message.includes('Record to update not found')) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+
+      res.status(500).json({ error: message });
+    }
   }
 
   async deleteUser(req: Request, res: Response): Promise<void> {

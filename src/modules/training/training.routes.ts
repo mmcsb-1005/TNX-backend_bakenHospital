@@ -33,6 +33,12 @@ router.post('/:id/generate-qr', TrainingController.generateQRCode)
 // GET /api/training/:id/qr-code - Get QR code for training
 router.get('/:id/qr-code', TrainingController.getQRCode)
 
+// POST /api/training/:id/bookmark - Bookmark a training
+router.post('/:id/bookmark', TrainingController.addBookmark)
+
+// DELETE /api/training/:id/bookmark - Remove a bookmarked training
+router.delete('/:id/bookmark', TrainingController.removeBookmark)
+
 // GET /api/training/:id - Get training by ID (MUST BE AFTER SPECIFIC ROUTES)
 router.get('/:id', TrainingController.getTrainingById)
 
