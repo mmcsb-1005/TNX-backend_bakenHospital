@@ -1,5 +1,13 @@
 import { RequestTrainingRepository } from './RequestTraining.repository';
-import { CreateRequestTrainingInput, UpdateRequestTrainingInput, ApproveRequestInput, RejectRequestInput, SubmitTrainingRequestInput } from './RequestTraining.model';
+import {
+  CreateRequestTrainingInput,
+  UpdateRequestTrainingInput,
+  ApproveRequestInput,
+  RejectRequestInput,
+  SubmitTrainingRequestInput,
+  ProposedTrainingData,
+  ApprovalTrailItem,
+} from './RequestTraining.model';
 import { prisma } from '../../lib/prisma';
 import { MailService } from '../mail/Mail.service';
 import { MailType, Prisma } from '@prisma/client';
@@ -13,18 +21,64 @@ export class RequestTrainingService {
   }
 
   async createRequestTraining(data: CreateRequestTrainingInput) {
+    let resolvedApprovalUserId = data.approvalUserId;
+    let currentApprovalLevel: number | null = null;
+    let trainingCategoryId: string | undefined;
+
     // Validate training exists
-    const training = await this.prisma.training.findUnique({
-      where: { id: data.trainingId },
-    });
-    if (!training) {
-      throw new Error('Training not found');
+    if (data.trainingId) {
+      const training = await this.prisma.training.findUnique({
+        where: { id: data.trainingId },
+        select: {
+          id: true,
+          categoryId: true,
+        },
+      });
+      if (!training) {
+        throw new Error('Training not found');
+      }
+
+      if (training.categoryId) {
+        trainingCategoryId = training.categoryId;
+      }
+    }
+
+    if (data.proposedTrainingData) {
+      await this.validateProposedTrainingData(data.proposedTrainingData);
+
+      const resolvedApprovalContext = await this.resolveApprovalWorkflowContext({
+        approvalUserId: data.approvalUserId,
+        categoryId: data.proposedTrainingData.categoryId,
+      });
+
+      resolvedApprovalUserId = resolvedApprovalContext.approvalUser.id;
+      currentApprovalLevel = resolvedApprovalContext.levels[0] || null;
+    }
+
+    if (!resolvedApprovalUserId) {
+      const resolvedApprovalContext = await this.resolveApprovalWorkflowContext({
+        approvalUserId: data.approvalUserId,
+        categoryId: trainingCategoryId,
+      });
+
+      resolvedApprovalUserId = resolvedApprovalContext.approvalUser.id;
+      currentApprovalLevel = resolvedApprovalContext.levels[0] || null;
+    }
+
+    if (resolvedApprovalUserId && currentApprovalLevel === null) {
+      const resolvedApprovalContext = await this.resolveApprovalWorkflowContext({
+        approvalUserId: resolvedApprovalUserId,
+        categoryId: trainingCategoryId,
+      });
+
+      resolvedApprovalUserId = resolvedApprovalContext.approvalUser.id;
+      currentApprovalLevel = resolvedApprovalContext.levels[0] || null;
     }
 
     // Validate approval user exists if provided
-    if (data.approvalUserId) {
+    if (resolvedApprovalUserId) {
       const approvalUser = await this.prisma.approvalUser.findUnique({
-        where: { id: data.approvalUserId },
+        where: { id: resolvedApprovalUserId },
       });
       if (!approvalUser) {
         throw new Error('Approval user not found');
@@ -39,7 +93,11 @@ export class RequestTrainingService {
       throw new Error('Some participants not found');
     }
 
-    const requestTraining = await this.requestTrainingRepository.create(data);
+    const requestTraining = await this.requestTrainingRepository.create({
+      ...data,
+      approvalUserId: resolvedApprovalUserId,
+      ...(currentApprovalLevel !== null ? { currentApprovalLevel } : {}),
+    });
 
     await this.notifyApproversForRequest(requestTraining.id);
 
@@ -60,7 +118,11 @@ export class RequestTrainingService {
 
   async updateRequestTraining(id: string, data: UpdateRequestTrainingInput) {
     // Check if request training exists
-    await this.getRequestTrainingById(id);
+    const existingRequest = await this.getRequestTrainingById(id);
+
+    if ((data.requestName || data.requestJustification || data.proposedTrainingData) && existingRequest.status !== 'PENDING') {
+      throw new Error('Only pending requests can be updated');
+    }
 
     // Validate training exists if updating
     if (data.trainingId) {
@@ -70,6 +132,10 @@ export class RequestTrainingService {
       if (!training) {
         throw new Error('Training not found');
       }
+    }
+
+    if (data.proposedTrainingData) {
+      await this.validateProposedTrainingData(data.proposedTrainingData);
     }
 
     // Validate approval user exists if updating
@@ -111,36 +177,122 @@ export class RequestTrainingService {
       throw new Error(`Request is already ${requestTraining.status.toLowerCase()}`);
     }
 
-    return await this.prisma.requestTraining.update({
-      where: { id: data.requestId },
-      data: {
-        status: 'APPROVED',
-        approvedAt: new Date(),
-        approvalNotes: data.notes || null,
-      },
-      include: {
-        training: {
-          include: {
-            category: true,
-          },
+    const approvalContext = await this.getApprovalContextForRequest(requestTraining.id);
+    const approverUser = approvalContext.currentApprovers.find((approver) => approver.id === data.actorUserId);
+
+    if (!approverUser) {
+      throw new Error('You are not authorized to approve this request at the current level');
+    }
+
+    const updatedRequest = await this.prisma.$transaction(async (tx) => {
+      let trainingId = requestTraining.trainingId || null;
+
+      const existingTrail = this.normalizeApprovalTrail(requestTraining.approvalTrail);
+      const nextTrail: ApprovalTrailItem[] = [
+        ...existingTrail,
+        {
+          level: approvalContext.currentLevel,
+          actorUserId: approverUser.id,
+          actorName: approverUser.name || 'Approver',
+          action: 'APPROVED',
+          notes: data.notes || null,
+          actedAt: new Date().toISOString(),
         },
-        participants: {
-          include: {
-            designation: true,
+      ];
+
+      const nextLevel = approvalContext.remainingLevels.find((level) => level < approvalContext.currentLevel) || null;
+
+      if (nextLevel !== null) {
+        const stagedRequest = await tx.requestTraining.update({
+          where: { id: data.requestId },
+          data: {
+            currentApprovalLevel: nextLevel,
+            approvalNotes: data.notes || null,
+            approvalTrail: nextTrail as unknown as Prisma.InputJsonValue,
           },
-        },
-        approvalUser: {
           include: {
-            trainingCategory: true,
-            approvedBy: {
+            training: {
+              include: {
+                category: true,
+              },
+            },
+            participants: {
               include: {
                 designation: true,
               },
             },
+            approvalUser: {
+              include: {
+                trainingCategory: true,
+                approvedBy: {
+                  include: {
+                    designation: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+        return stagedRequest;
+      }
+
+      if (!trainingId) {
+        const proposedTrainingData = this.normalizeProposedTrainingData(requestTraining.proposedTrainingData);
+
+        if (!proposedTrainingData) {
+          throw new Error('Proposed training data not found for this request');
+        }
+
+        await this.validateProposedTrainingData(proposedTrainingData, tx);
+
+        const createdTraining = await tx.training.create({
+          data: this.buildTrainingCreateInput(proposedTrainingData, 'ADMIN'),
+        });
+
+        trainingId = createdTraining.id;
+      }
+
+      return tx.requestTraining.update({
+        where: { id: data.requestId },
+        data: {
+          trainingId,
+          status: 'APPROVED',
+          approvedAt: new Date(),
+          rejectedAt: null,
+          currentApprovalLevel: null,
+          approvalNotes: data.notes || null,
+          approvalTrail: nextTrail as unknown as Prisma.InputJsonValue,
+        },
+        include: {
+          training: {
+            include: {
+              category: true,
+            },
+          },
+          participants: {
+            include: {
+              designation: true,
+            },
+          },
+          approvalUser: {
+            include: {
+              trainingCategory: true,
+              approvedBy: {
+                include: {
+                  designation: true,
+                },
+              },
+            },
           },
         },
-      },
+      });
     });
+
+    if (updatedRequest.status === 'PENDING') {
+      await this.notifyApproversForRequest(updatedRequest.id);
+    }
+
+    return updatedRequest;
   }
 
   async rejectRequest(data: RejectRequestInput) {
@@ -152,12 +304,34 @@ export class RequestTrainingService {
       throw new Error(`Request is already ${requestTraining.status.toLowerCase()}`);
     }
 
+    const approvalContext = await this.getApprovalContextForRequest(requestTraining.id);
+    const approverUser = approvalContext.currentApprovers.find((approver) => approver.id === data.actorUserId);
+
+    if (!approverUser) {
+      throw new Error('You are not authorized to reject this request at the current level');
+    }
+
+    const existingTrail = this.normalizeApprovalTrail(requestTraining.approvalTrail);
+    const nextTrail: ApprovalTrailItem[] = [
+      ...existingTrail,
+      {
+        level: approvalContext.currentLevel,
+        actorUserId: approverUser.id,
+        actorName: approverUser.name || 'Approver',
+        action: 'REJECTED',
+        notes: data.notes || null,
+        actedAt: new Date().toISOString(),
+      },
+    ];
+
     return await this.prisma.requestTraining.update({
       where: { id: data.requestId },
       data: {
         status: 'REJECTED',
         rejectedAt: new Date(),
+        currentApprovalLevel: null,
         approvalNotes: data.notes || null,
+        approvalTrail: nextTrail as unknown as Prisma.InputJsonValue,
       },
       include: {
         training: {
@@ -185,6 +359,15 @@ export class RequestTrainingService {
   }
 
   async getPendingRequestsForApprover(userId: string) {
+    const approver = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        designation: true,
+      },
+    });
+
+    const approverLevel = approver?.designation?.level;
+
     // Find all approval users where the user is an approver
     const approvalUsers = await this.prisma.approvalUser.findMany({
       where: {
@@ -209,6 +392,11 @@ export class RequestTrainingService {
           in: approvalUserIds,
         },
         status: 'PENDING',
+        ...(approverLevel
+          ? {
+              currentApprovalLevel: approverLevel,
+            }
+          : {}),
       },
       include: {
         training: {
@@ -239,6 +427,15 @@ export class RequestTrainingService {
   }
 
   async getAllRequestsForApprover(userId: string) {
+    const approver = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        designation: true,
+      },
+    });
+
+    const approverLevel = approver?.designation?.level;
+
     // Find all approval users where the user is an approver
     const approvalUsers = await this.prisma.approvalUser.findMany({
       where: {
@@ -257,7 +454,7 @@ export class RequestTrainingService {
     const approvalUserIds = approvalUsers.map(au => au.id);
 
     // Find all requests assigned to these approval users (regardless of status)
-    return await this.prisma.requestTraining.findMany({
+    const allRequests = await this.prisma.requestTraining.findMany({
       where: {
         approvalUserId: {
           in: approvalUserIds,
@@ -289,6 +486,18 @@ export class RequestTrainingService {
         createdAt: 'desc',
       },
     });
+
+    return allRequests.filter((request) => {
+      if (request.status !== 'PENDING') {
+        return true;
+      }
+
+      if (!approverLevel) {
+        return true;
+      }
+
+      return request.currentApprovalLevel === approverLevel;
+    });
   }
 
   async getMyTrainings(userId: string) {
@@ -301,6 +510,9 @@ export class RequestTrainingService {
           },
         },
         status: 'APPROVED', // Only show approved trainings
+        trainingId: {
+          not: null,
+        },
       },
       include: {
         training: {
@@ -322,8 +534,42 @@ export class RequestTrainingService {
     });
 
     // Sort by training date in memory instead of in database
-    return requestTrainings.sort((a, b) => {
-      return new Date(b.training.dateTimeStart).getTime() - new Date(a.training.dateTimeStart).getTime();
+    return requestTrainings
+      .filter((requestTraining) => !!requestTraining.training)
+      .sort((a, b) => {
+      return new Date(b.training!.dateTimeStart).getTime() - new Date(a.training!.dateTimeStart).getTime();
+      });
+  }
+
+  async getMyRequests(userId: string) {
+    return await this.prisma.requestTraining.findMany({
+      where: {
+        participants: {
+          some: {
+            id: userId,
+          },
+        },
+      },
+      include: {
+        training: {
+          include: {
+            category: true,
+          },
+        },
+        participants: {
+          include: {
+            designation: true,
+          },
+        },
+        approvalUser: {
+          include: {
+            trainingCategory: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
     });
   }
 
@@ -336,63 +582,21 @@ export class RequestTrainingService {
       throw new Error('User not found');
     }
 
-    // Validate category exists if provided
-    if (data.trainingData.categoryId) {
-      const category = await this.prisma.trainingCategory.findUnique({
-        where: { id: data.trainingData.categoryId },
-      });
-      if (!category) {
-        throw new Error('Training category not found');
-      }
-    }
+    await this.validateProposedTrainingData(data.trainingData);
 
-    // Validate approval user exists if provided
-    if (data.approvalUserId) {
-      const approvalUser = await this.prisma.approvalUser.findUnique({
-        where: { id: data.approvalUserId },
-      });
-      if (!approvalUser) {
-        throw new Error('Approval user not found');
-      }
-    }
+    const resolvedApprovalContext = await this.resolveApprovalWorkflowContext({
+      approvalUserId: data.approvalUserId,
+      categoryId: data.trainingData.categoryId,
+    });
 
-    // Calculate duration
-    const startDate = new Date(data.trainingData.dateTimeStart);
-    const endDate = new Date(data.trainingData.dateTimeEnd);
-    const duration = this.calculateDuration(startDate, endDate);
-
-    // Create both Training and RequestTraining in a transaction
     const result = await this.prisma.$transaction(async (tx) => {
-      // Create Training
-      const training = await tx.training.create({
-        data: {
-          title: data.trainingData.title,
-          description: data.trainingData.description || null,
-          organizer: data.trainingData.organizer,
-          trainingType: data.trainingData.trainingType,
-          dateTimeStart: new Date(data.trainingData.dateTimeStart),
-          dateTimeEnd: new Date(data.trainingData.dateTimeEnd),
-          duration: duration,
-          venue: data.trainingData.venue,
-          bond: data.trainingData.bond,
-          typeOfPayment: data.trainingData.typeOfPayment,
-          budgeted: data.trainingData.budgeted,
-          trainingMethod: data.trainingData.trainingMethod,
-          sponsored: data.trainingData.sponsored || null,
-          accommodationCost: data.trainingData.accommodationCost || null,
-          travelCost: data.trainingData.travelCost || null,
-          mealCost: data.trainingData.mealCost || null,
-          comment: data.trainingData.comment || null,
-          categoryId: data.trainingData.categoryId || null,
-        },
-      });
-
-      // Create RequestTraining
       const requestTraining = await tx.requestTraining.create({
         data: {
           requestName: data.requestName,
-          trainingId: training.id,
-          approvalUserId: data.approvalUserId || null,
+          requestJustification: data.trainingData.comment || null,
+          proposedTrainingData: data.trainingData as unknown as Prisma.InputJsonValue,
+          approvalUserId: resolvedApprovalContext.approvalUser.id,
+          currentApprovalLevel: resolvedApprovalContext.levels[0] || null,
           status: 'PENDING',
           participants: {
             connect: [{ id: data.userId }],
@@ -499,6 +703,11 @@ export class RequestTrainingService {
                   id: true,
                   name: true,
                   email: true,
+                  designation: {
+                    select: {
+                      level: true,
+                    },
+                  },
                 },
               },
             },
@@ -514,9 +723,14 @@ export class RequestTrainingService {
       }
 
       const approvers = request.approvalUser.approvedBy.filter((user) => !!user.email);
-      if (approvers.length === 0) {
+      const currentLevel = request.currentApprovalLevel ?? this.extractApprovalLevels(request.approvalUser.approvedBy)[0] ?? null;
+      const approversAtCurrentLevel = approvers.filter(
+        (user) => user.designation?.level === currentLevel
+      );
+
+      if (approversAtCurrentLevel.length === 0) {
         if (options.failOnError) {
-          throw new Error('No approver email found in selected approval user.');
+          throw new Error('No approver email found for the current approval level.');
         }
         return;
       }
@@ -524,21 +738,36 @@ export class RequestTrainingService {
       const requesterName = request.participants[0]?.name || 'Staff';
       const frontendBaseUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
       const approvalUrl = `${frontendBaseUrl.replace(/\/$/, '')}/users/approvel/view/${request.id}`;
+      const proposedTrainingData = this.normalizeProposedTrainingData(request.proposedTrainingData);
+      const trainingTitle = request.training?.title || proposedTrainingData?.title || request.requestName;
+      const levelLabel = currentLevel ? `Level ${currentLevel}` : 'Current level';
 
       const formattedSubmittedAt = new Date(request.createdAt).toLocaleString('en-MY', {
         timeZone: 'Asia/Kuala_Lumpur',
       });
 
       const sendResults = await Promise.allSettled(
-        approvers.map((approver) =>
-          MailService.sendTemplateMail('REQUEST_APPROVAL' as MailType, approver.email as string, {
+        approversAtCurrentLevel.map(async (approver) => {
+          const basePayload = {
             approverName: approver.name || 'Approver',
             requestName: request.requestName,
-            trainingTitle: request.training.title,
+            trainingTitle,
             submittedBy: requesterName,
             submittedAt: formattedSubmittedAt,
             approvalUrl,
-          })
+            levelLabel,
+          };
+
+          await MailService.sendTrainingApprovalNotification(approver.email as string, {
+            ...basePayload,
+            mailKind: 'NOTIFICATION',
+          });
+
+          return MailService.sendTrainingApprovalNotification(approver.email as string, {
+            ...basePayload,
+            mailKind: 'ACTION_REQUIRED',
+          });
+        }
         )
       );
 
@@ -577,5 +806,165 @@ export class RequestTrainingService {
     } else {
       return `${diffMinutes} minute${diffMinutes > 1 ? 's' : ''}`;
     }
+  }
+
+  private normalizeProposedTrainingData(value: Prisma.JsonValue | null | undefined): ProposedTrainingData | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+
+    return value as unknown as ProposedTrainingData;
+  }
+
+  private normalizeApprovalTrail(value: Prisma.JsonValue | null | undefined): ApprovalTrailItem[] {
+    if (!value || !Array.isArray(value)) {
+      return [];
+    }
+
+    return value as unknown as ApprovalTrailItem[];
+  }
+
+  private extractApprovalLevels(users: Array<{ designation?: { level?: number | null } | null }>): number[] {
+    return Array.from(
+      new Set(
+        users
+          .map((user) => user.designation?.level)
+          .filter((level): level is number => typeof level === 'number')
+      )
+    ).sort((a, b) => b - a);
+  }
+
+  private async resolveApprovalWorkflowContext(params: { approvalUserId?: string; categoryId?: string }) {
+    const approvalUser = await this.prisma.approvalUser.findFirst({
+      where: params.approvalUserId
+        ? { id: params.approvalUserId }
+        : params.categoryId
+          ? { trainingCategoryId: params.categoryId }
+          : undefined,
+      include: {
+        approvedBy: {
+          include: {
+            designation: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    })
+      ?? await this.prisma.approvalUser.findFirst({
+        include: {
+          approvedBy: {
+            include: {
+              designation: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'asc',
+        },
+      });
+
+    if (!approvalUser) {
+      throw new Error('No approval workflow is configured. Please configure approval users first.');
+    }
+
+    const levels = this.extractApprovalLevels(approvalUser.approvedBy);
+    if (levels.length === 0) {
+      throw new Error('No approver levels configured for the selected approval workflow.');
+    }
+
+    return {
+      approvalUser,
+      levels,
+    };
+  }
+
+  private async getApprovalContextForRequest(requestId: string) {
+    const request = await this.prisma.requestTraining.findUnique({
+      where: { id: requestId },
+      include: {
+        approvalUser: {
+          include: {
+            approvedBy: {
+              include: {
+                designation: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!request || !request.approvalUser) {
+      throw new Error('No approval workflow configured for this request');
+    }
+
+    const levels = this.extractApprovalLevels(request.approvalUser.approvedBy);
+    const currentLevel = request.currentApprovalLevel ?? levels[0];
+
+    if (!currentLevel) {
+      throw new Error('No current approval level found for this request');
+    }
+
+    const currentApprovers = request.approvalUser.approvedBy.filter(
+      (user) => user.designation?.level === currentLevel
+    );
+
+    return {
+      currentLevel,
+      currentApprovers,
+      remainingLevels: levels,
+    };
+  }
+
+  private async validateProposedTrainingData(data: ProposedTrainingData, tx: Prisma.TransactionClient | typeof prisma = this.prisma) {
+    const startDate = new Date(data.dateTimeStart);
+    const endDate = new Date(data.dateTimeEnd);
+
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      throw new Error('Invalid training schedule provided');
+    }
+
+    if (endDate <= startDate) {
+      throw new Error('Training end date must be after the start date');
+    }
+
+    if (data.categoryId) {
+      const category = await tx.trainingCategory.findUnique({
+        where: { id: data.categoryId },
+      });
+
+      if (!category) {
+        throw new Error('Training category not found');
+      }
+    }
+  }
+
+  private buildTrainingCreateInput(data: ProposedTrainingData, source: 'ADMIN' | 'USER_REQUEST'): Prisma.TrainingUncheckedCreateInput {
+    const startDate = new Date(data.dateTimeStart);
+    const endDate = new Date(data.dateTimeEnd);
+
+    return {
+      title: data.title,
+      description: data.description || null,
+      organizer: data.organizer,
+      trainingType: data.trainingType,
+      dateTimeStart: startDate,
+      dateTimeEnd: endDate,
+      duration: this.calculateDuration(startDate, endDate),
+      venue: data.venue,
+      bond: data.bond,
+      typeOfPayment: data.typeOfPayment,
+      budgeted: data.budgeted,
+      trainingMethod: data.trainingMethod,
+      sponsored: data.sponsored || null,
+      accommodationCost: data.accommodationCost || null,
+      travelCost: data.travelCost || null,
+      mealCost: data.mealCost || null,
+      comment: data.comment || null,
+      categoryId: data.categoryId || null,
+      source,
+    };
   }
 }

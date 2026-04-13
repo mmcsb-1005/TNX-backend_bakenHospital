@@ -45,6 +45,8 @@ interface MailService {
       submittedBy: string;
       submittedAt: string;
       approvalUrl: string;
+      levelLabel: string;
+      mailKind?: 'NOTIFICATION' | 'ACTION_REQUIRED';
     }
   ): Promise<nodemailer.SentMessageInfo>;
   sendContactMessage(
@@ -94,25 +96,37 @@ class MailServiceImpl implements MailService {
       submittedBy: string;
       submittedAt: string;
       approvalUrl: string;
+      levelLabel: string;
+      mailKind?: 'NOTIFICATION' | 'ACTION_REQUIRED';
     }
   ): Promise<nodemailer.SentMessageInfo> {
+    const isActionRequired = payload.mailKind === 'ACTION_REQUIRED';
+    const title = isActionRequired
+      ? `Action Required (${payload.levelLabel}): ${payload.requestName}`
+      : `New Request Notification (${payload.levelLabel}): ${payload.requestName}`;
+    const intro = isActionRequired
+      ? `Hi ${payload.approverName}, please review and ${payload.levelLabel.toLowerCase()} approve or reject this training request.`
+      : `Hi ${payload.approverName}, a new training request has entered ${payload.levelLabel.toLowerCase()} for your visibility.`;
+    const cta = isActionRequired ? 'Approve / Reject Request' : 'View Request Details';
+
     return await transporter.sendMail({
       from: process.env.MAIL_FROM || 'no-reply@app.com',
       to,
-      subject: `Approval Required: ${payload.requestName}`,
+      subject: title,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 10px;">
-          <h2 style="margin: 0 0 14px; color: #111827;">Training Request Needs Your Approval</h2>
-          <p style="margin: 0 0 16px; color: #374151;">Hi ${payload.approverName}, there is a new training request waiting for your review.</p>
+          <h2 style="margin: 0 0 14px; color: #111827;">Training Request Workflow Notification</h2>
+          <p style="margin: 0 0 16px; color: #374151;">${intro}</p>
 
           <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; margin-bottom: 16px;">
+            <p style="margin: 0 0 8px;"><strong>Approval Stage:</strong> ${payload.levelLabel}</p>
             <p style="margin: 0 0 8px;"><strong>Request:</strong> ${payload.requestName}</p>
             <p style="margin: 0 0 8px;"><strong>Training:</strong> ${payload.trainingTitle}</p>
             <p style="margin: 0 0 8px;"><strong>Submitted By:</strong> ${payload.submittedBy}</p>
             <p style="margin: 0;"><strong>Submitted At:</strong> ${payload.submittedAt}</p>
           </div>
 
-          <a href="${payload.approvalUrl}" style="display: inline-block; background: #2563eb; color: #ffffff; text-decoration: none; padding: 10px 14px; border-radius: 8px; font-weight: 600;">Review Request</a>
+          <a href="${payload.approvalUrl}" style="display: inline-block; background: #2563eb; color: #ffffff; text-decoration: none; padding: 10px 14px; border-radius: 8px; font-weight: 600;">${cta}</a>
 
           <p style="margin-top: 18px; color: #6b7280; font-size: 12px;">This is an automated notification from the training system.</p>
         </div>

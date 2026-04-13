@@ -101,9 +101,9 @@ export const staffPhotoUploadMiddleware = createUploadMiddleware(staffPhotoStora
  */
 export const handleUploadError = (err: any, req: Request, res: Response, next: NextFunction) => {
   if (err instanceof multer.MulterError) {
-    res.status(400).json({ error: `Upload failed: ${err.message}` });
+    res.status(400).json({ message: `Upload failed: ${err.message}`, error: err.message });
   } else if (err) {
-    res.status(400).json({ error: err.message });
+    res.status(400).json({ message: err.message, error: err.message });
   } else {
     next();
   }

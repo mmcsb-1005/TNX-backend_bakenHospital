@@ -12,6 +12,7 @@ router.get('/', requestTrainingController.getRequestTrainings);
 router.get('/pending/my-approvals', requestTrainingController.getPendingRequestsForApprover);
 router.get('/my-approvals', requestTrainingController.getAllRequestsForApprover);
 router.get('/my-trainings', requestTrainingController.getMyTrainings);
+router.get('/my-requests', requestTrainingController.getMyRequests);
 router.get('/:id', requestTrainingController.getRequestTrainingById);
 router.post('/', requestTrainingController.createRequestTraining);
 router.post('/submit-with-training', requestTrainingController.submitTrainingRequest);

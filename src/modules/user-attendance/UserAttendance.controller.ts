@@ -2,6 +2,32 @@ import { Request, Response, NextFunction } from 'express';
 import { UserAttendanceService } from './UserAttendance.service';
 import { prisma } from '../../lib/prisma';
 
+const getStartOfDay = (date: Date): Date => {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  return start;
+};
+
+const getEndOfDay = (date: Date): Date => {
+  const end = new Date(date);
+  end.setHours(23, 59, 59, 999);
+  return end;
+};
+
+const getTotalTrainingDays = (startDate: Date, endDate: Date): number => {
+  const start = getStartOfDay(startDate);
+  const end = getStartOfDay(endDate);
+  const diffInMs = end.getTime() - start.getTime();
+  return Math.max(1, Math.floor(diffInMs / (1000 * 60 * 60 * 24)) + 1);
+};
+
+const getAttendanceDayNumber = (trainingStartDate: Date, attendanceDate: Date): number => {
+  const start = getStartOfDay(trainingStartDate);
+  const attendance = getStartOfDay(attendanceDate);
+  const diffInMs = attendance.getTime() - start.getTime();
+  return Math.max(1, Math.floor(diffInMs / (1000 * 60 * 60 * 24)) + 1);
+};
+
 export class UserAttendanceController {
   private userAttendanceService: UserAttendanceService;
 
@@ -157,6 +183,7 @@ export class UserAttendanceController {
     try {
       const { trainingId, token } = req.body;
       const userId = (req as any).user?.id; // Assuming user ID comes from auth middleware
+      const now = new Date();
 
       if (!trainingId || !token) {
         return res.status(400).json({
@@ -199,20 +226,39 @@ export class UserAttendanceController {
         });
       }
 
-      // Check if user is already registered for this training
+      const attendanceDate = getStartOfDay(now);
+      const trainingStartDate = getStartOfDay(training.dateTimeStart);
+      const trainingEndDate = getStartOfDay(training.dateTimeEnd);
+      const totalTrainingDays = getTotalTrainingDays(training.dateTimeStart, training.dateTimeEnd);
+
+      if (attendanceDate < trainingStartDate || attendanceDate > trainingEndDate) {
+        return res.status(400).json({
+          success: false,
+          message: 'Attendance can only be marked within the training date range',
+        });
+      }
+
+      const dayStart = getStartOfDay(attendanceDate);
+      const dayEnd = getEndOfDay(attendanceDate);
+
+      // Check if attendance for this training day is already marked
       const existingAttendance = await prisma.userAttendance.findFirst({
         where: {
           userId: userId,
-          trainingId: trainingId
+          trainingId: trainingId,
+          attendanceDate: {
+            gte: dayStart,
+            lte: dayEnd,
+          },
         }
       });
 
       if (existingAttendance) {
-        // Check if already scanned
+        // Check if already scanned for this day
         if (existingAttendance.scannedAt) {
           return res.status(409).json({
             success: false,
-            message: 'Attendance already marked via QR code',
+            message: 'Attendance for today has already been marked via QR code',
             data: existingAttendance
           });
         }
@@ -222,7 +268,7 @@ export class UserAttendanceController {
           where: { id: existingAttendance.id },
           data: {
             isPresent: true,
-            scannedAt: new Date(),
+            scannedAt: now,
             scannedVia: 'QR_CODE'
           },
           include: {
@@ -238,15 +284,31 @@ export class UserAttendanceController {
                 id: true,
                 title: true,
                 dateTimeStart: true,
-                dateTimeEnd: true
+                dateTimeEnd: true,
+                venue: true,
               }
             }
           }
         });
 
+        const attendedDays = await prisma.userAttendance.count({
+          where: {
+            userId,
+            trainingId,
+            isPresent: true,
+          },
+        });
+
+        const attendanceDay = getAttendanceDayNumber(training.dateTimeStart, attendanceDate);
+
         return res.status(200).json({
           success: true,
-          data: updatedAttendance,
+          data: {
+            ...updatedAttendance,
+            attendanceDay,
+            attendedDays,
+            totalTrainingDays,
+          },
           message: 'Attendance marked successfully',
         });
       }
@@ -256,9 +318,9 @@ export class UserAttendanceController {
         data: {
           userId: userId,
           trainingId: trainingId,
-          attendanceDate: new Date(),
+          attendanceDate,
           isPresent: true,
-          scannedAt: new Date(),
+          scannedAt: now,
           scannedVia: 'QR_CODE'
         },
         include: {
@@ -274,15 +336,31 @@ export class UserAttendanceController {
               id: true,
               title: true,
               dateTimeStart: true,
-              dateTimeEnd: true
+                dateTimeEnd: true,
+                venue: true,
             }
           }
         }
       });
 
+
+      const attendedDays = await prisma.userAttendance.count({
+        where: {
+          userId,
+          trainingId,
+          isPresent: true,
+        },
+      });
+
+      const attendanceDay = getAttendanceDayNumber(training.dateTimeStart, attendanceDate);
       res.status(201).json({
         success: true,
-        data: newAttendance,
+        data: {
+          ...newAttendance,
+          attendanceDay,
+          attendedDays,
+          totalTrainingDays,
+        },
         message: 'Attendance marked successfully',
       });
     } catch (error) {

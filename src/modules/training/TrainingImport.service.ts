@@ -155,7 +155,8 @@ export class TrainingImportService {
             comment: row.comment?.trim() || null,
             objectives: row.objectives?.trim() || null,
             courseCurriculum: row.courseCurriculum?.trim() || null,
-            faqs: row.faqs?.trim() || null
+            faqs: row.faqs?.trim() || null,
+            source: 'ADMIN'
           }
         })
 

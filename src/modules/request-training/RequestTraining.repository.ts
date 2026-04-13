@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { CreateRequestTrainingInput, UpdateRequestTrainingInput } from './RequestTraining.model';
 
@@ -8,15 +9,42 @@ export class RequestTrainingRepository {
   }
 
   async create(data: CreateRequestTrainingInput) {
-    const { participantIds, ...requestData } = data;
+    const { participantIds, trainingId, proposedTrainingData, approvalTrail, approvalUserId, ...requestData } = data;
+
+    const createPayload: Prisma.RequestTrainingCreateInput = {
+      ...requestData,
+      ...(approvalTrail !== undefined
+        ? {
+            approvalTrail:
+              approvalTrail === null
+                ? Prisma.JsonNull
+                : (approvalTrail as unknown as Prisma.InputJsonValue),
+          }
+        : {}),
+      ...(proposedTrainingData
+        ? { proposedTrainingData: proposedTrainingData as unknown as Prisma.InputJsonValue }
+        : {}),
+      ...(approvalUserId
+        ? {
+            approvalUser: {
+              connect: { id: approvalUserId },
+            },
+          }
+        : {}),
+      ...(trainingId
+        ? {
+            training: {
+              connect: { id: trainingId },
+            },
+          }
+        : {}),
+      participants: {
+        connect: participantIds.map(id => ({ id })),
+      },
+    };
     
     return await this.prisma.requestTraining.create({
-      data: {
-        ...requestData,
-        participants: {
-          connect: participantIds.map(id => ({ id })),
-        },
-      },
+      data: createPayload,
       include: {
         training: {
           include: {
@@ -109,6 +137,14 @@ export class RequestTrainingRepository {
       updatePayload.participants = {
         set: participantIds.map(id => ({ id })),
       };
+    }
+
+    if (Object.prototype.hasOwnProperty.call(updateData, 'approvalUserId')) {
+      const approvalUserId = updateData.approvalUserId;
+      delete updatePayload.approvalUserId;
+      updatePayload.approvalUser = approvalUserId
+        ? { connect: { id: approvalUserId } }
+        : { disconnect: true };
     }
 
     return await this.prisma.requestTraining.update({

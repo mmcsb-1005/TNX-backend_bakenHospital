@@ -51,7 +51,18 @@ export class TrainingController {
   static async getAllTrainings(req: Request, res: Response) {
     try {
       const userId = getAuthenticatedUserId(req)
+      const sourceParam = req.query.source as string | undefined
+
+      // By default only show admin-created trainings; pass ?source=USER_REQUEST or ?source=all to override
+      const sourceFilter =
+        sourceParam === 'all'
+          ? undefined
+          : sourceParam === 'USER_REQUEST'
+          ? 'USER_REQUEST'
+          : 'ADMIN'
+
       const trainings = await prisma.training.findMany({
+        where: sourceFilter ? { source: sourceFilter as any } : undefined,
         include: {
           bookmarks: userId
             ? {
@@ -313,7 +324,8 @@ export class TrainingController {
           objectives,
           courseCurriculum,
           faqs,
-          imagePath: imagePath || null
+          imagePath: imagePath || null,
+          source: 'ADMIN'
         }
       })
 

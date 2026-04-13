@@ -103,6 +103,7 @@ model Training {
   courseCurriculum  String?        @db.Text
   faqs              String?        @db.Text
   imagePath         String?
+  source            TrainingSource @default(ADMIN)
 
   // QR Code Attendance
   qrCodeToken       String?   @unique // Unique token for QR code
@@ -151,6 +152,11 @@ enum PaymentType {
 enum TrainingMethod {
   CASH_IN_ADVANCE
   PAY_AND_CLAIM
+}
+
+enum TrainingSource {
+  ADMIN        // Training created directly by admin
+  USER_REQUEST // Training proposed by a user (requires approval)
 }
 
 model Setting {
@@ -253,11 +259,15 @@ model TrainingCategory {
 model RequestTraining {
   id          String   @id @default(cuid())
   requestName String
-  trainingId  String
-  training    Training @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+  requestJustification String?
+  trainingId  String?
+  training    Training? @relation(fields: [trainingId], references: [id], onDelete: SetNull)
+  proposedTrainingData Json?
 
   approvalUserId String?
   approvalUser   ApprovalUser? @relation(fields: [approvalUserId], references: [id], onDelete: SetNull)
+  currentApprovalLevel Int?
+  approvalTrail Json?
 
   status        ApprovalStatus @default(PENDING)
   approvedAt    DateTime?

@@ -79,9 +79,17 @@ export class RequestTrainingController {
     try {
       const { id } = req.params;
       const { notes } = req.body;
+      const actorUserId = (req as any).user?.id;
+      if (!actorUserId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+      }
       const requestTraining = await this.requestTrainingService.approveRequest({
         requestId: id as string,
         notes,
+        actorUserId,
       });
       res.status(200).json({
         success: true,
@@ -97,9 +105,17 @@ export class RequestTrainingController {
     try {
       const { id } = req.params;
       const { notes } = req.body;
+      const actorUserId = (req as any).user?.id;
+      if (!actorUserId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+      }
       const requestTraining = await this.requestTrainingService.rejectRequest({
         requestId: id as string,
         notes,
+        actorUserId,
       });
       res.status(200).json({
         success: true,
@@ -165,6 +181,27 @@ export class RequestTrainingController {
         success: true,
         data: trainings,
         message: 'My trainings retrieved successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getMyRequests = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+      }
+
+      const requests = await this.requestTrainingService.getMyRequests(userId);
+      res.status(200).json({
+        success: true,
+        data: requests,
+        message: 'My requests retrieved successfully',
       });
     } catch (error) {
       next(error);
