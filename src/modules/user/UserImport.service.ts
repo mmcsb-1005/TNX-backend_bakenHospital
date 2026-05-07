@@ -2,10 +2,13 @@ import { UserRole } from '@prisma/client'
 import { prisma } from '../../lib/prisma'
 import { hashPasswordIfNeeded } from '../../utils/password'
 
+type AnyRow = Record<string, any>
+
 interface UserImportRow {
   name: string
   email: string
-  position?: string
+  designation?: string
+  grade?: string
   contactNumber?: string
   employmentDate?: string
   role?: string
@@ -28,7 +31,7 @@ export class UserImportService {
   /**
    * Process CSV data and import users
    */
-  static async importUsers(data: UserImportRow[]): Promise<ImportResult> {
+  static async importUsers(data: AnyRow[]): Promise<ImportResult> {
     const result: ImportResult = {
       success: true,
       successCount: 0,
@@ -36,8 +39,32 @@ export class UserImportService {
       errors: []
     }
 
+    const pickString = (row: AnyRow, keys: string[]): string | undefined => {
+      for (const key of keys) {
+        const value = row?.[key]
+        if (value === undefined || value === null) continue
+        const str = String(value).trim()
+        if (str.length > 0) return str
+      }
+      return undefined
+    }
+
+    const normalizeRow = (raw: AnyRow): UserImportRow => {
+      return {
+        name: pickString(raw, ['name', 'Name']) || '',
+        email: pickString(raw, ['email', 'Email']) || '',
+        designation: pickString(raw, ['designation', 'Designation', 'position', 'Position']),
+        grade: pickString(raw, ['grade', 'Grade', 'gradeTitle', 'Grade Title', 'gradeName', 'Grade Name']),
+        contactNumber: pickString(raw, ['contactNumber', 'Contact Number', 'contact', 'Contact']),
+        employmentDate: pickString(raw, ['employmentDate', 'Employment Date']),
+        role: pickString(raw, ['role', 'Role']),
+        userOrgId: pickString(raw, ['userOrgId', 'User Org ID', 'Staff ID', 'staffId', 'StaffId']),
+        password: pickString(raw, ['password', 'Password']),
+      }
+    }
+
     for (let i = 0; i < data.length; i++) {
-      const row = data[i]
+      const row = normalizeRow(data[i])
       const rowNumber = i + 2 // +2 because row 1 is header, and array is 0-indexed
 
       try {
@@ -56,15 +83,6 @@ export class UserImportService {
           throw new Error('Invalid email format')
         }
 
-        // Check if email already exists
-        const existingUser = await prisma.user.findUnique({
-          where: { email: row.email }
-        })
-
-        if (existingUser) {
-          throw new Error(`Email ${row.email} already exists`)
-        }
-
         // Validate role if provided
         const validRoles = ['ADMIN', 'USER']
         const role = row.role?.toUpperCase() || 'USER'
@@ -72,17 +90,30 @@ export class UserImportService {
           throw new Error(`Invalid role. Must be one of: ${validRoles.join(', ')}`)
         }
 
-        // Find designation by position name if provided
+        // Find designation by name if provided
         let designationId: string | null = null
-        if (row.position) {
+        const designationName = row.designation?.trim()
+        if (designationName) {
           const designation = await prisma.designation.findUnique({
-            where: { name: row.position.trim() }
+            where: { name: designationName }
           })
           
-          if (designation) {
-            designationId = designation.id
+          if (!designation) {
+            throw new Error(`Designation "${designationName}" not found`)
           }
-          // Note: If designation not found, we still create the user with position but no designationId
+          designationId = designation.id
+        }
+
+        // Resolve grade by name if provided
+        let gradeId: string | null = null
+        const gradeName = row.grade?.trim()
+        if (gradeName) {
+          const grade = await prisma.grade.upsert({
+            where: { name: gradeName },
+            create: { name: gradeName },
+            update: {},
+          })
+          gradeId = grade.id
         }
 
         // Parse employment date if provided
@@ -102,8 +133,9 @@ export class UserImportService {
           data: {
             name: row.name.trim(),
             email: row.email.trim().toLowerCase(),
-            position: row.position?.trim() || null,
+            position: designationName || null,
             designationId: designationId,
+            gradeId,
             contactNumber: row.contactNumber?.trim() || null,
             employmentDate: employmentDate || null,
             role: role as UserRole,
@@ -135,7 +167,8 @@ export class UserImportService {
     return [
       'name',
       'email',
-      'position',
+      'designation',
+      'grade',
       'contactNumber',
       'employmentDate',
       'role',
@@ -152,7 +185,8 @@ export class UserImportService {
       {
         name: 'John Doe',
         email: 'john.doe@example.com',
-        position: 'Software Engineer',
+        designation: 'Software Engineer',
+        grade: 'G6',
         contactNumber: '0123456789',
         employmentDate: '2026-01-15',
         role: 'USER',
@@ -162,7 +196,8 @@ export class UserImportService {
       {
         name: 'Jane Smith',
         email: 'jane.smith@example.com',
-        position: 'HR Manager',
+        designation: 'HR Manager',
+        grade: 'G7',
         contactNumber: '0129876543',
         employmentDate: '2025-12-01',
         role: 'USER',

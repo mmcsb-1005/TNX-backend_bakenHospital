@@ -18,8 +18,8 @@ class AuthControllerImpl implements AuthController {
       const loginData: LoginRequest = req.body;
       
       // Validate required fields
-      if (!loginData.email) {
-        res.status(400).json({ error: 'Email is required' });
+      if (!loginData.userOrgId && !loginData.email) {
+        res.status(400).json({ error: 'User ID is required' });
         return;
       }
       if (!loginData.password) {
@@ -138,4 +138,3 @@ class AuthControllerImpl implements AuthController {
 }
 
 export const AuthController = new AuthControllerImpl();
-

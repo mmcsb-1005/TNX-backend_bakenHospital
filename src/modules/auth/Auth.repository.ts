@@ -2,6 +2,8 @@ import { User, PasswordResetToken } from "./Auth.model";
 
 interface AuthRepository {
   findUserByEmail(email: string): Promise<any>;
+  findUsersByEmail(email: string): Promise<any[]>;
+  findUserByUserOrgId(userOrgId: string): Promise<any>;
   findUserById(id: string): Promise<any>;
   countAdminUsers(): Promise<number>;
   createAdminUser(data: { email: string; name?: string; password: string }): Promise<any>;
@@ -12,11 +14,40 @@ interface AuthRepository {
 
 class AuthRepositoryImpl implements AuthRepository {
   async findUserByEmail(email: string): Promise<any> {
-    return await User.findUnique({
+    return await User.findFirst({
       where: { email },
       select: {
         id: true,
         email: true,
+        userOrgId: true,
+        password: true,
+        name: true,
+        role: true,
+      },
+    });
+  }
+
+  async findUsersByEmail(email: string): Promise<any[]> {
+    return await User.findMany({
+      where: { email },
+      select: {
+        id: true,
+        email: true,
+        userOrgId: true,
+        password: true,
+        name: true,
+        role: true,
+      },
+    });
+  }
+
+  async findUserByUserOrgId(userOrgId: string): Promise<any> {
+    return await User.findUnique({
+      where: { userOrgId },
+      select: {
+        id: true,
+        email: true,
+        userOrgId: true,
         password: true,
         name: true,
         role: true,
@@ -30,6 +61,7 @@ class AuthRepositoryImpl implements AuthRepository {
       select: {
         id: true,
         email: true,
+        userOrgId: true,
         name: true,
         role: true,
       },
@@ -55,6 +87,7 @@ class AuthRepositoryImpl implements AuthRepository {
       select: {
         id: true,
         email: true,
+        userOrgId: true,
         name: true,
         role: true,
       },
@@ -91,5 +124,3 @@ class AuthRepositoryImpl implements AuthRepository {
 }
 
 export const AuthRepository = new AuthRepositoryImpl();
-
-

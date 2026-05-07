@@ -29,20 +29,6 @@ export class UserProfileService {
     contactNumber?: string;
     designationId?: string;
   }) {
-    // Check if email is unique (if being updated)
-    if (data.email) {
-      const existingUser = await prisma.user.findFirst({
-        where: {
-          email: data.email,
-          id: { not: userId }
-        }
-      });
-
-      if (existingUser) {
-        throw new Error('Email already exists');
-      }
-    }
-
     return await prisma.user.update({
       where: { id: userId },
       data,

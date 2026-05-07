@@ -8,30 +8,52 @@ import swaggerUi from 'swagger-ui-express';
 import swaggerJSDoc from 'swagger-jsdoc';
 import { errorHandler } from './middleware/error.middleware';
 
+// Routes untuk authentication - login, register, logout
 import AuthRoutes from './modules/auth/Auth.route'
+// Routes untuk pengurusan pengguna - CRUD operations untuk user
 import userRoutes from './modules/user/User.route'
+// Routes untuk tetapan sistem - konfigurasi aplikasi
 import settingRoutes from './modules/setting/Setting.route'
+// Routes untuk tetapan awam - tetapan yang boleh diakses tanpa auth
 import publicSettingRoutes from './modules/setting/PublicSetting.route'
+// Routes untuk emel - penghantaran notifikasi emel
 import mailRoutes from './modules/mail/Mail.route'
+// Routes untuk latihan - pengurusan program latihan
 import trainingRoutes from './modules/training/training.routes'
+// Routes untuk borang dinamik - sistem borang untuk pengumpulan data
 import formRoutes from './modules/form/form.routes'
 
-// New admin routes
+// Routes admin baharu
+// Routes untuk jawatan - pengurusan designation/position
 import designationRoutes from './modules/designation/Designation.route'
+// Routes untuk grade - pengurusan grade jawatan
+import gradeRoutes from './modules/grade/Grade.route'
+// Routes untuk kategori latihan - pengkelasan jenis latihan
 import trainingCategoryRoutes from './modules/training-category/TrainingCategory.route'
+// Routes untuk permintaan latihan - pengguna memohon latihan
 import requestTrainingRoutes from './modules/request-training/RequestTraining.route'
+// Routes untuk kelulusan - proses approve/reject permintaan
 import approvalUserRoutes from './modules/approval-user/ApprovalUser.route'
+// Routes untuk kehadiran pengguna - tracking attendance latihan
 import userAttendanceRoutes from './modules/user-attendance/UserAttendance.route'
+// Routes untuk pembayaran - tuntutan bayaran latihan
+import paymentRoutes from './modules/payment/Payment.route'
+// Routes untuk notifikasi - sistem pemberitahuan
+import notificationRoutes from './modules/notification/Notification.route'
 
 import { requireAuth } from './middleware/auth.middleware'
 
+// Setup aplikasi Express
 const app = express();
-app.use(cors());
-app.use(express.json());
-app.use('/logo', express.static(path.join(__dirname, '../../frontend/public/logo')));
-app.use('/training', express.static(path.join(__dirname, '../../frontend/public/training')));
 
-// Swagger Documentation
+// Middleware asas
+app.use(cors()); // Enable CORS untuk cross-origin requests
+app.use(express.json()); // Parse JSON body
+
+// Static file serving untuk frontend assets
+app.use('/qr-generate', express.static(path.join(__dirname, '../../frontend/public/qr-generate')));
+
+// Konfigurasi Swagger untuk dokumentasi API
 app.use('session', express.static('session'));
 const swaggerDefinition = {
     openapi: '3.0.0',
@@ -91,24 +113,32 @@ try {
     throw err;
 }
 
-// All Public API
+// ===========================
+// API ROUTES
+// ===========================
+
+// Routes awam - tidak memerlukan authentication
 app.use('/api/public/setting', publicSettingRoutes);
 
-// Auth
+// Authentication routes
 app.use('/api/auth', AuthRoutes);
 
-// All Protected API
+// Routes yang dilindungi - memerlukan authentication JWT
 app.use('/api/user', requireAuth, userRoutes);
 app.use('/api/setting', requireAuth, settingRoutes);
 app.use('/api/mail', requireAuth, mailRoutes);
 app.use('/api/training', requireAuth, trainingRoutes);
+app.use('/api/payment', requireAuth, paymentRoutes.userRouter);
+app.use('/api/notifications', requireAuth, notificationRoutes);
 
 // Admin API routes
 app.use('/api/admin/designation', requireAuth, designationRoutes);
+app.use('/api/admin/grade', requireAuth, gradeRoutes);
 app.use('/api/admin/training-category', requireAuth, trainingCategoryRoutes);
 app.use('/api/admin/request-training', requireAuth, requestTrainingRoutes);
 app.use('/api/admin/approval-user', requireAuth, approvalUserRoutes);
 app.use('/api/admin/user-attendance', requireAuth, userAttendanceRoutes);
+app.use('/api/admin/payment', requireAuth, paymentRoutes.adminRouter);
 
 // Form routes (admin and public)
 app.use('/api', formRoutes);

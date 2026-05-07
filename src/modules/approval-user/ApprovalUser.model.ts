@@ -11,12 +11,18 @@ export interface CreateApprovalUserInput {
   title: string;
   trainingCategoryId: string;
   description?: string;
-  approvedByIds: string[];
+  approvers: Array<{
+    userId: string;
+    level: number;
+  }>;
 }
 
 export interface UpdateApprovalUserInput {
   title?: string;
   trainingCategoryId?: string;
   description?: string;
-  approvedByIds?: string[];
+  approvers?: Array<{
+    userId: string;
+    level: number;
+  }>;
 }

@@ -1,44 +1,145 @@
-# TNAPRO ( Powered By MMCSB )
+# TNAPRO Backend (Powered By MMCSB)
 
-This is a documentation file prepared to help with the current and future development of the system. This file act as a reference and guide on how to use each of the API provided.
+Ini adalah dokumentasi untuk membantu pembangunan semasa dan masa depan sistem TNAPRO. Fail ini bertindak sebagai rujukan dan panduan tentang cara menggunakan setiap API yang disediakan.
 
-# GRADE
+## Gambaran Keseluruhan Backend
 
-API to create, read, update and delete grade.
+Backend TNAPRO adalah aplikasi Node.js yang dibina menggunakan Express.js untuk pengurusan latihan, pengguna, dan proses kelulusan. Ia menggunakan Prisma sebagai ORM untuk interaksi dengan database PostgreSQL, dan menyediakan API RESTful untuk frontend.
 
-## Create
+### Teknologi Utama
+- **Node.js** dengan **Express.js** untuk server web
+- **Prisma** sebagai ORM untuk database PostgreSQL
+- **JWT** untuk authentication
+- **Swagger** untuk dokumentasi API
+- **Multer** untuk upload fail (gambar, CSV)
+- **Nodemailer** untuk penghantaran emel
+- **Cloudinary** untuk penyimpanan gambar
+- **QR Code** untuk penjanaan kod QR
 
-> **API** : https://[your-url]/api/grade
-> **Method** : POST
-> **Header** : Authorization Bearer {token}
-> **Body Content (JSON)** : `{ id: MM0001, name: Hanif Ismail, positionid: 21}`
+### Struktur Folder
+```
+backend/
+├── prisma/                 # Konfigurasi database dan migrations
+│   ├── schema.prisma       # Definisi model database
+│   ├── seed.ts            # Data awal untuk database
+│   └── migrations/        # Fail migration database
+├── src/
+│   ├── app.ts             # Konfigurasi utama aplikasi Express
+│   ├── index.ts           # Entry point aplikasi
+│   ├── bootstrap/         # Setup awal (admin user)
+│   ├── lib/               # Utiliti perpustakaan (Prisma client)
+│   ├── middleware/        # Middleware untuk auth, error handling, upload
+│   ├── modules/           # Modul-modul API
+│   │   ├── auth/          # Authentication dan authorization
+│   │   ├── user/          # Pengurusan pengguna
+│   │   ├── training/      # Pengurusan latihan
+│   │   ├── request-training/ # Permintaan latihan
+│   │   ├── approval-user/ # Proses kelulusan
+│   │   ├── payment/       # Tuntutan pembayaran
+│   │   ├── notification/  # Notifikasi
+│   │   └── ...            # Modul lain
+│   ├── services/          # Perkhidmatan utiliti
+│   ├── types/             # Definisi TypeScript
+│   └── utils/             # Utiliti tambahan
+├── swagger-autogen.js     # Konfigurasi Swagger
+├── swagger-output.json    # Dokumentasi API yang dijana
+└── package.json           # Dependencies dan scripts
+```
 
-## Read (ALL)
+### Cara Menjalankan
 
-> **API** : https://[your-url]/api/grade
-> **Parameter** : None
-> **Method** : GET
-> **Header** : Authorization Bearer {token}
-> **Body Content (JSON)** : None
-> **Output Example** : `{ id: MM0001, name: Hanif Ismail, positionid: 21}`
+1. **Install dependencies:**
+   ```bash
+   npm install
+   ```
 
-## Read (Unique)
+2. **Setup database:**
+   - Pastikan PostgreSQL berjalan
+   - Konfigurasi connection string di `.env`
+   - Jalankan migration:
+     ```bash
+     npx prisma migrate deploy
+     ```
+   - Generate Prisma client:
+     ```bash
+     npx prisma generate
+     ```
 
-> **API** : https://[your-url]/api/grade/:id
-> **Parameter** : id (eg. 1,2,3)
-> **Method** : GET
-> **Header** : Authorization Bearer {token}
-> **Body Content (JSON)** : None
-> **Output Example** : `{ id: MM0001, name: Hanif Ismail, positionid: 21}`
+3. **Jalankan dalam development mode:**
+   ```bash
+   npm run dev
+   ```
+   Ini akan menjana Swagger docs dan memulakan server di port 3001.
 
-## Update
+4. **Build untuk production:**
+   ```bash
+   npm run build
+   npm start
+   ```
 
-You can rename the current file by clicking the file name in the navigation bar or by clicking the **Rename** button in the file explorer.
+### Model Database Utama
 
-## Delete
+- **User**: Maklumat pengguna, peranan (ADMIN/USER), profil staf
+- **StaffProfile**: Maklumat profesional staf, kemahiran, jabatan
+- **Training**: Maklumat latihan, tarikh, venue, jenis pembayaran
+- **RequestTraining**: Permintaan latihan oleh pengguna
+- **ApprovalUser**: Proses kelulusan untuk permintaan latihan
+- **PaymentClaim**: Tuntutan pembayaran untuk latihan
+- **Form**: Sistem borang dinamik untuk pengumpulan data
+- **Notification**: Sistem notifikasi untuk pengguna
 
-You can delete the current file by clicking the **Remove** button in the file explorer. The file will be moved into the **Trash** folder and automatically deleted after 7 days of inactivity.
+### API Endpoints Utama
 
-## Export a file
+API menggunakan authentication JWT. Header `Authorization: Bearer {token}` diperlukan untuk kebanyakan endpoints.
 
-You can export the current file by clicking **Export to disk** in the menu. You can choose to export the file as plain Markdown, as HTML using a Handlebars template or as a PDF.
+#### Authentication
+- `POST /api/auth/login` - Login pengguna
+- `POST /api/auth/register` - Daftar pengguna baru
+
+#### Pengguna
+- `GET /api/user` - Dapatkan semua pengguna
+- `GET /api/user/:id` - Dapatkan pengguna spesifik
+- `PUT /api/user/:id` - Update pengguna
+
+#### Latihan
+- `GET /api/training` - Dapatkan semua latihan
+- `POST /api/training` - Cipta latihan baru
+- `PUT /api/training/:id` - Update latihan
+
+#### Permintaan Latihan
+- `POST /api/request-training` - Hantar permintaan latihan
+- `GET /api/request-training` - Dapatkan permintaan latihan
+
+#### Kelulusan
+- `POST /api/approval-user` - Proses kelulusan
+- `GET /api/approval-user` - Dapatkan status kelulusan
+
+#### Pembayaran
+- `POST /api/payment` - Tuntut pembayaran
+- `GET /api/payment` - Dapatkan tuntutan pembayaran
+
+### Dokumentasi API Lengkap
+
+Akses dokumentasi Swagger di `http://localhost:3001/api-docs` apabila server berjalan.
+
+### Environment Variables
+
+Cipta fail `.env` dengan:
+```
+DATABASE_URL="postgresql://username:password@localhost:5432/database_name"
+JWT_SECRET="your_jwt_secret"
+PORT=3001
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+EMAIL_USER=your_email@gmail.com
+EMAIL_PASS=your_email_password
+```
+
+### Catatan Pembangunan
+
+- Gunakan `npm run swagger` untuk menjana dokumentasi API
+- Database migrations disimpan di `prisma/migrations/`
+- Middleware authentication melindungi routes sensitif
+- Sistem menyokong upload gambar dan CSV import
+- Notifikasi emel dihantar untuk kelulusan dan pembayaran

@@ -1,6 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import { ApprovalUserService } from './ApprovalUser.service';
 
+/**
+ * Controller untuk menguruskan proses kelulusan permintaan latihan
+ * Mengendalikan CRUD operations untuk ApprovalUser entities
+ */
 export class ApprovalUserController {
   private approvalUserService: ApprovalUserService;
 
@@ -8,6 +12,10 @@ export class ApprovalUserController {
     this.approvalUserService = new ApprovalUserService();
   }
 
+  /**
+   * Cipta rekod kelulusan baru untuk permintaan latihan
+   * @param req.body - Data kelulusan (approvedById, requestTrainingId, status, dll.)
+   */
   createApprovalUser = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const approvalUser = await this.approvalUserService.createApprovalUser(req.body);
@@ -21,6 +29,10 @@ export class ApprovalUserController {
     }
   };
 
+  /**
+   * Dapatkan semua rekod kelulusan
+   * @returns Array of approval records
+   */
   getApprovalUsers = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const approvalUsers = await this.approvalUserService.getApprovalUsers();
@@ -34,6 +46,10 @@ export class ApprovalUserController {
     }
   };
 
+  /**
+   * Dapatkan rekod kelulusan berdasarkan ID
+   * @param req.params.id - ID rekod kelulusan
+   */
   getApprovalUserById = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;

@@ -2,6 +2,34 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { CreateRequestTrainingInput, UpdateRequestTrainingInput } from './RequestTraining.model';
 
+// Shared include labels so response shape stays consistent across repository methods.
+const requestTrainingInclude = {
+  training: {
+    include: {
+      category: true,
+    },
+  },
+  participants: {
+    include: {
+      designation: true,
+    },
+  },
+  approvalUser: {
+    include: {
+      trainingCategory: true,
+      approvers: {
+        include: {
+          user: {
+            include: {
+              designation: true,
+            },
+          },
+        },
+      },
+    },
+  },
+};
+
 export class RequestTrainingRepository {
   private prisma = prisma;
 
@@ -45,55 +73,13 @@ export class RequestTrainingRepository {
     
     return await this.prisma.requestTraining.create({
       data: createPayload,
-      include: {
-        training: {
-          include: {
-            category: true,
-          },
-        },
-        participants: {
-          include: {
-            designation: true,
-          },
-        },
-        approvalUser: {
-          include: {
-            trainingCategory: true,
-            approvedBy: {
-              include: {
-                designation: true,
-              },
-            },
-          },
-        },
-      },
+      include: requestTrainingInclude,
     });
   }
 
   async findAll() {
     return await this.prisma.requestTraining.findMany({
-      include: {
-        training: {
-          include: {
-            category: true,
-          },
-        },
-        participants: {
-          include: {
-            designation: true,
-          },
-        },
-        approvalUser: {
-          include: {
-            trainingCategory: true,
-            approvedBy: {
-              include: {
-                designation: true,
-              },
-            },
-          },
-        },
-      },
+      include: requestTrainingInclude,
       orderBy: {
         createdAt: 'desc',
       },
@@ -103,35 +89,46 @@ export class RequestTrainingRepository {
   async findById(id: string) {
     return await this.prisma.requestTraining.findUnique({
       where: { id },
-      include: {
-        training: {
-          include: {
-            category: true,
-          },
-        },
-        participants: {
-          include: {
-            designation: true,
-          },
-        },
-        approvalUser: {
-          include: {
-            trainingCategory: true,
-            approvedBy: {
-              include: {
-                designation: true,
-              },
-            },
-          },
-        },
-      },
+      include: requestTrainingInclude,
     });
   }
 
   async update(id: string, data: UpdateRequestTrainingInput) {
-    const { participantIds, ...updateData } = data;
-    
-    const updatePayload: any = { ...updateData };
+    const {
+      participantIds,
+      approvalUserId,
+      proposedTrainingData,
+      approvalTrail,
+      trainingId,
+      ...updateData
+    } = data;
+
+    const updatePayload: Prisma.RequestTrainingUpdateInput = {
+      ...updateData,
+      ...(approvalTrail !== undefined
+        ? {
+            approvalTrail:
+              approvalTrail === null
+                ? Prisma.JsonNull
+                : (approvalTrail as unknown as Prisma.InputJsonValue),
+          }
+        : {}),
+      ...(proposedTrainingData !== undefined
+        ? {
+            proposedTrainingData:
+              proposedTrainingData === null
+                ? Prisma.JsonNull
+                : (proposedTrainingData as unknown as Prisma.InputJsonValue),
+          }
+        : {}),
+      ...(trainingId !== undefined
+        ? {
+            training: trainingId
+              ? { connect: { id: trainingId } }
+              : { disconnect: true },
+          }
+        : {}),
+    };
     
     if (participantIds) {
       updatePayload.participants = {
@@ -139,9 +136,7 @@ export class RequestTrainingRepository {
       };
     }
 
-    if (Object.prototype.hasOwnProperty.call(updateData, 'approvalUserId')) {
-      const approvalUserId = updateData.approvalUserId;
-      delete updatePayload.approvalUserId;
+    if (approvalUserId !== undefined) {
       updatePayload.approvalUser = approvalUserId
         ? { connect: { id: approvalUserId } }
         : { disconnect: true };
@@ -150,28 +145,7 @@ export class RequestTrainingRepository {
     return await this.prisma.requestTraining.update({
       where: { id },
       data: updatePayload,
-      include: {
-        training: {
-          include: {
-            category: true,
-          },
-        },
-        participants: {
-          include: {
-            designation: true,
-          },
-        },
-        approvalUser: {
-          include: {
-            trainingCategory: true,
-            approvedBy: {
-              include: {
-                designation: true,
-              },
-            },
-          },
-        },
-      },
+      include: requestTrainingInclude,
     });
   }
 

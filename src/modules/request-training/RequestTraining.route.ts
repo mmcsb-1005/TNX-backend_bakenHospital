@@ -9,6 +9,7 @@ const requestTrainingController = new RequestTrainingController();
 router.use(authMiddleware);
 
 router.get('/', requestTrainingController.getRequestTrainings);
+router.get('/information/approver', requestTrainingController.getInformationApprover);
 router.get('/pending/my-approvals', requestTrainingController.getPendingRequestsForApprover);
 router.get('/my-approvals', requestTrainingController.getAllRequestsForApprover);
 router.get('/my-trainings', requestTrainingController.getMyTrainings);

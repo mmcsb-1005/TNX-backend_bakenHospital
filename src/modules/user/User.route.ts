@@ -14,6 +14,7 @@ router.post('/import', csvImportMiddleware, UserController.importUsers); // #swa
 router.delete('/bulk', UserController.bulkDeleteUsers); // #swagger.tags = ['User']
 
 // Profile-specific routes (require authentication)
+router.post('/profile/upload-avatar', authMiddleware, staffPhotoUploadMiddleware, handleUploadError, UserController.uploadMyAvatar); // #swagger.tags = ['User Profile']
 router.get('/profile/me', authMiddleware, UserController.getMyProfile); // #swagger.tags = ['User Profile']
 router.put('/profile/me', authMiddleware, UserController.updateMyProfile); // #swagger.tags = ['User Profile']
 router.post('/profile/change-password', authMiddleware, UserController.changePassword); // #swagger.tags = ['User Profile']

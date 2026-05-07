@@ -181,16 +181,18 @@ export class UserAttendanceController {
   // Scan QR code for attendance
   scanQRCode = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { trainingId, token } = req.body;
+      const { qrData } = req.body; // QR data object from scanned QR code
       const userId = (req as any).user?.id; // Assuming user ID comes from auth middleware
       const now = new Date();
 
-      if (!trainingId || !token) {
+      if (!qrData || !qrData.trainingId || !qrData.token) {
         return res.status(400).json({
           success: false,
-          message: 'Training ID and token are required',
+          message: 'Valid QR data is required',
         });
       }
+
+      const { trainingId, token, date: qrDate } = qrData;
 
       if (!userId) {
         return res.status(401).json({
@@ -211,22 +213,30 @@ export class UserAttendanceController {
         });
       }
 
-      if (!training.qrCodeToken || training.qrCodeToken !== token) {
+      // Validate QR code by checking against QrCode table
+      const qrCodeRecord = await prisma.qrCode.findFirst({
+        where: {
+          trainingId: trainingId,
+          token: token,
+          expiresAt: {
+            gt: new Date() // Not expired
+          }
+        },
+        include: {
+          training: true
+        }
+      })
+
+      if (!qrCodeRecord) {
         return res.status(400).json({
           success: false,
-          message: 'Invalid QR code',
+          message: 'Invalid or expired QR code',
         });
       }
 
-      // Check if QR code is expired
-      if (training.qrCodeExpiresAt && new Date() > training.qrCodeExpiresAt) {
-        return res.status(410).json({
-          success: false,
-          message: 'QR code has expired',
-        });
-      }
+      // Determine attendance date - use QR code date
+      const attendanceDate = getStartOfDay(qrCodeRecord.date);
 
-      const attendanceDate = getStartOfDay(now);
       const trainingStartDate = getStartOfDay(training.dateTimeStart);
       const trainingEndDate = getStartOfDay(training.dateTimeEnd);
       const totalTrainingDays = getTotalTrainingDays(training.dateTimeStart, training.dateTimeEnd);
@@ -234,7 +244,7 @@ export class UserAttendanceController {
       if (attendanceDate < trainingStartDate || attendanceDate > trainingEndDate) {
         return res.status(400).json({
           success: false,
-          message: 'Attendance can only be marked within the training date range',
+          message: 'QR code date is outside the training date range',
         });
       }
 

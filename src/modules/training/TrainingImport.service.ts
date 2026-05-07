@@ -1,6 +1,8 @@
 import { TrainingType, BondType, PaymentType, TrainingMethod } from '@prisma/client'
 import { prisma } from '../../lib/prisma'
 
+type AnyRow = Record<string, any>
+
 interface TrainingImportRow {
   title: string
   description?: string
@@ -12,7 +14,7 @@ interface TrainingImportRow {
   bond: string
   typeOfPayment: string
   budgeted: string
-  sponsored: string
+  sponsored?: string
   accommodationCost?: string
   travelCost?: string
   mealCost?: string
@@ -38,7 +40,7 @@ export class TrainingImportService {
   /**
    * Process CSV data and import trainings
    */
-  static async importTrainings(data: TrainingImportRow[]): Promise<ImportResult> {
+  static async importTrainings(data: AnyRow[]): Promise<ImportResult> {
     const result: ImportResult = {
       success: true,
       successCount: 0,
@@ -46,8 +48,90 @@ export class TrainingImportService {
       errors: []
     }
 
+    const pickString = (row: AnyRow, keys: string[]): string | undefined => {
+      for (const key of keys) {
+        const value = row?.[key]
+        if (value === undefined || value === null) continue
+        const str = String(value).trim()
+        if (str.length > 0) return str
+      }
+      return undefined
+    }
+
+    const normalizeRow = (raw: AnyRow): TrainingImportRow => {
+      return {
+        title: pickString(raw, ['title', 'Title']) || '',
+        description: pickString(raw, ['description', 'Description']),
+        organizer: pickString(raw, ['organizer', 'Organizer']) || '',
+        trainingType: pickString(raw, ['trainingType', 'Training Type', 'training_type']) || '',
+        dateTimeStart: pickString(raw, ['dateTimeStart', 'Start Date', 'date_time_start']) || '',
+        dateTimeEnd: pickString(raw, ['dateTimeEnd', 'End Date', 'date_time_end']) || '',
+        venue: pickString(raw, ['venue', 'Venue']) || '',
+        bond: pickString(raw, ['bond', 'Bond Type', 'bondType']) || '',
+        typeOfPayment: pickString(raw, ['typeOfPayment', 'Payment Type', 'paymentType']) || '',
+        budgeted: pickString(raw, ['budgeted', 'Budgeted']) || '',
+        sponsored: pickString(raw, ['sponsored', 'Sponsored']),
+        accommodationCost: pickString(raw, ['accommodationCost', 'Accommodation Cost']),
+        travelCost: pickString(raw, ['travelCost', 'Travel Cost']),
+        mealCost: pickString(raw, ['mealCost', 'Meal Cost']),
+        trainingMethod: pickString(raw, ['trainingMethod', 'Training Method']) || '',
+        comment: pickString(raw, ['comment', 'Comment']),
+        objectives: pickString(raw, ['objectives', 'Objectives']),
+        courseCurriculum: pickString(raw, ['courseCurriculum', 'Course Curriculum']),
+        faqs: pickString(raw, ['faqs', 'FAQs']),
+      }
+    }
+
+    const parseBoolean = (value: string | undefined): boolean | null => {
+      if (!value) return null
+      const v = value.trim().toLowerCase()
+      if (['true', 'yes', 'y', '1'].includes(v)) return true
+      if (['false', 'no', 'n', '0'].includes(v)) return false
+      return null
+    }
+
+    const parseDateTime = (raw: string): Date => {
+      const value = raw.trim()
+      const ymdHm = /^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})$/
+      const ymdHms = /^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})$/
+
+      let normalized = value
+      if (ymdHm.test(value)) {
+        normalized = value.replace(' ', 'T') + ':00'
+      } else if (ymdHms.test(value)) {
+        normalized = value.replace(' ', 'T')
+      }
+
+      const date = new Date(normalized)
+      if (isNaN(date.getTime())) {
+        throw new Error('Invalid date format. Use YYYY-MM-DD HH:MM (e.g., 2026-03-01 09:00)')
+      }
+      return date
+    }
+
+    const calculateDuration = (startDate: Date, endDate: Date): string => {
+      const diffMs = endDate.getTime() - startDate.getTime()
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1
+      const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+      const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60))
+
+      if (diffDays > 0) {
+        if (diffHours > 0) {
+          return `${diffDays} day${diffDays > 1 ? 's' : ''} ${diffHours} hour${diffHours > 1 ? 's' : ''}`
+        }
+        return `${diffDays} day${diffDays > 1 ? 's' : ''}`
+      } else if (diffHours > 0) {
+        if (diffMinutes > 0) {
+          return `${diffHours} hour${diffHours > 1 ? 's' : ''} ${diffMinutes} minute${diffMinutes > 1 ? 's' : ''}`
+        }
+        return `${diffHours} hour${diffHours > 1 ? 's' : ''}`
+      } else {
+        return `${diffMinutes} minute${diffMinutes > 1 ? 's' : ''}`
+      }
+    }
+
     for (let i = 0; i < data.length; i++) {
-      const row = data[i]
+      const row = normalizeRow(data[i])
       const rowNumber = i + 2 // +2 because row 1 is header, and array is 0-indexed
 
       try {
@@ -96,42 +180,32 @@ export class TrainingImportService {
         }
 
         // Validate dates
-        const startDate = new Date(row.dateTimeStart)
-        const endDate = new Date(row.dateTimeEnd)
-
-        if (isNaN(startDate.getTime())) {
-          throw new Error('Invalid start date format. Use YYYY-MM-DD HH:MM format')
-        }
-
-        if (isNaN(endDate.getTime())) {
-          throw new Error('Invalid end date format. Use YYYY-MM-DD HH:MM format')
-        }
+        const startDate = parseDateTime(row.dateTimeStart)
+        const endDate = parseDateTime(row.dateTimeEnd)
 
         if (startDate >= endDate) {
           throw new Error('End date must be after start date')
         }
 
         // Calculate duration
-        const diffMs = endDate.getTime() - startDate.getTime()
-        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1
-        const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
-        
-        let duration: string
-        if (diffDays > 0) {
-          if (diffHours > 0) {
-            duration = `${diffDays} day${diffDays > 1 ? 's' : ''} ${diffHours} hour${diffHours > 1 ? 's' : ''}`
-          } else {
-            duration = `${diffDays} day${diffDays > 1 ? 's' : ''}`
-          }
-        } else {
-          duration = `${diffHours} hour${diffHours > 1 ? 's' : ''}`
-        }
+        const duration = calculateDuration(startDate, endDate)
 
         // Parse boolean for budgeted
-        const budgeted = row.budgeted?.toLowerCase() === 'yes' || row.budgeted?.toLowerCase() === 'true'
-        
-        // Parse boolean for sponsored
-        const sponsored = row.sponsored?.toLowerCase() === 'yes' || row.sponsored?.toLowerCase() === 'true'
+        const budgeted = parseBoolean(row.budgeted)
+        if (budgeted === null) {
+          throw new Error('Invalid budgeted value. Use Yes/No or True/False')
+        }
+
+        const sponsored = row.sponsored?.trim() || null
+
+        const parseNumberOrNull = (value?: string): number | null => {
+          if (!value) return null
+          const n = Number(value)
+          if (!Number.isFinite(n)) {
+            throw new Error(`Invalid number: "${value}"`)
+          }
+          return n
+        }
 
         // Create training
         await prisma.training.create({
@@ -147,10 +221,10 @@ export class TrainingImportService {
             bond: row.bond.trim() as BondType,
             typeOfPayment: row.typeOfPayment.trim() as PaymentType,
             budgeted,
-            sponsored: sponsored ? 'Yes' : 'No',
-            accommodationCost: row.accommodationCost ? Number(row.accommodationCost) : null,
-            travelCost: row.travelCost ? Number(row.travelCost) : null,
-            mealCost: row.mealCost ? Number(row.mealCost) : null,
+            sponsored,
+            accommodationCost: parseNumberOrNull(row.accommodationCost),
+            travelCost: parseNumberOrNull(row.travelCost),
+            mealCost: parseNumberOrNull(row.mealCost),
             trainingMethod: row.trainingMethod.trim() as TrainingMethod,
             comment: row.comment?.trim() || null,
             objectives: row.objectives?.trim() || null,
@@ -218,8 +292,8 @@ export class TrainingImportService {
         venue: 'Conference Room A',
         bond: 'BONDED',
         typeOfPayment: 'HRDCORP',
-        budgeted: 'Yes',
-        sponsored: 'No',
+        budgeted: 'true',
+        sponsored: '',
         accommodationCost: '500',
         travelCost: '200',
         mealCost: '150',
@@ -239,8 +313,8 @@ export class TrainingImportService {
         venue: 'Tech Hub Building',
         bond: 'NON_BONDED',
         typeOfPayment: 'NONE',
-        budgeted: 'No',
-        sponsored: 'Yes',
+        budgeted: 'false',
+        sponsored: 'External Sponsor Ltd',
         accommodationCost: '',
         travelCost: '100',
         mealCost: '50',

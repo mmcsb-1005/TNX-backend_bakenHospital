@@ -130,6 +130,9 @@
             "schema": {
               "type": "object",
               "properties": {
+                "userOrgId": {
+                  "example": "any"
+                },
                 "email": {
                   "example": "any"
                 },
@@ -181,6 +184,9 @@
             "schema": {
               "type": "object",
               "properties": {
+                "userOrgId": {
+                  "example": "any"
+                },
                 "email": {
                   "example": "any"
                 },
@@ -264,6 +270,9 @@
             "schema": {
               "type": "object",
               "properties": {
+                "userOrgId": {
+                  "example": "any"
+                },
                 "email": {
                   "example": "any"
                 },
@@ -315,6 +324,9 @@
             "schema": {
               "type": "object",
               "properties": {
+                "userOrgId": {
+                  "example": "any"
+                },
                 "email": {
                   "example": "any"
                 },
@@ -377,10 +389,19 @@
                 "length": {
                   "example": "any"
                 },
-                "ids": {
+                "where": {
+                  "example": "any"
+                },
+                "select": {
+                  "example": "any"
+                },
+                "success": {
                   "example": "any"
                 },
                 "req.body": {
+                  "example": "any"
+                },
+                "message": {
                   "example": "any"
                 },
                 "name": {
@@ -518,10 +539,19 @@
                 "length": {
                   "example": "any"
                 },
-                "ids": {
+                "where": {
+                  "example": "any"
+                },
+                "select": {
+                  "example": "any"
+                },
+                "success": {
                   "example": "any"
                 },
                 "req.body": {
+                  "example": "any"
+                },
+                "message": {
                   "example": "any"
                 },
                 "name": {
@@ -598,10 +628,108 @@
                 "length": {
                   "example": "any"
                 },
-                "ids": {
+                "where": {
+                  "example": "any"
+                },
+                "select": {
+                  "example": "any"
+                },
+                "success": {
                   "example": "any"
                 },
                 "req.body": {
+                  "example": "any"
+                },
+                "message": {
+                  "example": "any"
+                },
+                "name": {
+                  "example": "any"
+                },
+                "email": {
+                  "example": "any"
+                },
+                "image": {
+                  "example": "any"
+                },
+                "position": {
+                  "example": "any"
+                },
+                "contactNumber": {
+                  "example": "any"
+                },
+                "designationId": {
+                  "example": "any"
+                },
+                "currentPassword": {
+                  "example": "any"
+                },
+                "newPassword": {
+                  "example": "any"
+                },
+                "confirmPassword": {
+                  "example": "any"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/user/profile/upload-avatar": {
+      "post": {
+        "description": "",
+        "produces": [
+          "text/csv"
+        ],
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "length": {
+                  "example": "any"
+                },
+                "where": {
+                  "example": "any"
+                },
+                "select": {
+                  "example": "any"
+                },
+                "success": {
+                  "example": "any"
+                },
+                "req.body": {
+                  "example": "any"
+                },
+                "message": {
                   "example": "any"
                 },
                 "name": {
@@ -711,10 +839,19 @@
                 "length": {
                   "example": "any"
                 },
-                "ids": {
+                "where": {
+                  "example": "any"
+                },
+                "select": {
+                  "example": "any"
+                },
+                "success": {
                   "example": "any"
                 },
                 "req.body": {
+                  "example": "any"
+                },
+                "message": {
                   "example": "any"
                 },
                 "name": {
@@ -791,10 +928,19 @@
                 "length": {
                   "example": "any"
                 },
-                "ids": {
+                "where": {
+                  "example": "any"
+                },
+                "select": {
+                  "example": "any"
+                },
+                "success": {
                   "example": "any"
                 },
                 "req.body": {
+                  "example": "any"
+                },
+                "message": {
                   "example": "any"
                 },
                 "name": {
@@ -1021,10 +1167,19 @@
                 "length": {
                   "example": "any"
                 },
-                "ids": {
+                "where": {
+                  "example": "any"
+                },
+                "select": {
+                  "example": "any"
+                },
+                "success": {
                   "example": "any"
                 },
                 "req.body": {
+                  "example": "any"
+                },
+                "message": {
                   "example": "any"
                 },
                 "name": {
@@ -1105,10 +1260,19 @@
                 "length": {
                   "example": "any"
                 },
-                "ids": {
+                "where": {
+                  "example": "any"
+                },
+                "select": {
+                  "example": "any"
+                },
+                "success": {
                   "example": "any"
                 },
                 "req.body": {
+                  "example": "any"
+                },
+                "message": {
                   "example": "any"
                 },
                 "name": {
@@ -1218,10 +1382,19 @@
                 "length": {
                   "example": "any"
                 },
-                "ids": {
+                "where": {
+                  "example": "any"
+                },
+                "select": {
+                  "example": "any"
+                },
+                "success": {
                   "example": "any"
                 },
                 "req.body": {
+                  "example": "any"
+                },
+                "message": {
                   "example": "any"
                 },
                 "name": {
@@ -1914,8 +2087,154 @@
         }
       }
     },
+    "/api/training/payment-submissions": {
+      "get": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/training/{id}/payment-proof": {
+      "post": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
     "/api/training/{id}/generate-qr": {
       "post": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "date": {
+                  "example": "any"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/training/{id}/generate-qr/bulk": {
+      "post": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "dates": {
+                  "example": "any"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/training/{id}/qr-codes/all": {
+      "get": {
         "description": "",
         "parameters": [
           {
@@ -1946,7 +2265,7 @@
         }
       }
     },
-    "/api/training/{id}/qr-code": {
+    "/api/training/{id}/qr-codes": {
       "get": {
         "description": "",
         "parameters": [
@@ -1960,20 +2279,25 @@
             "name": "authorization",
             "in": "header",
             "type": "string"
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "type": "string"
           }
         ],
         "responses": {
           "200": {
             "description": "OK"
           },
+          "400": {
+            "description": "Bad Request"
+          },
           "401": {
             "description": "Unauthorized"
           },
           "404": {
             "description": "Not Found"
-          },
-          "410": {
-            "description": "Gone"
           },
           "500": {
             "description": "Internal Server Error"
@@ -2207,6 +2531,178 @@
         }
       }
     },
+    "/api/payment/claims": {
+      "get": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/payment/upload-receipt": {
+      "post": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/payment/claims/{id}": {
+      "put": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/notifications/": {
+      "get": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/notifications/unread-count": {
+      "get": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/notifications/{id}/read": {
+      "put": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/notifications/mark-all-read": {
+      "put": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/notifications/{id}": {
+      "delete": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
     "/api/admin/designation/": {
       "get": {
         "description": "",
@@ -2291,6 +2787,103 @@
       }
     },
     "/api/admin/designation/{id}": {
+      "get": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "put": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "delete": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/admin/grade/": {
+      "get": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/admin/grade/{id}": {
       "get": {
         "description": "",
         "parameters": [
@@ -2520,6 +3113,23 @@
         }
       },
       "post": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/admin/request-training/information/approver": {
+      "get": {
         "description": "",
         "parameters": [
           {

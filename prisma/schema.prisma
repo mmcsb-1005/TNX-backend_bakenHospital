@@ -9,17 +9,19 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
 }
 
 model User {
   id             String       @id @default(cuid())
   name           String?
-  email          String?      @unique
+  email          String?
   image          String?
   position       String?
   designationId  String?
   designation    Designation? @relation(fields: [designationId], references: [id])
+  gradeId        String?
+  grade          Grade?       @relation(fields: [gradeId], references: [id], onDelete: SetNull)
   contactNumber  String?
   employmentDate DateTime?
   role           UserRole     @default(USER)
@@ -32,14 +34,18 @@ model User {
 
   // Relations for request training
   requestedTrainings RequestTraining[] @relation("RequestParticipant")
-  approvedUsers      ApprovalUser[]    @relation("ApprovedBy")
+  approvalAssignments ApprovalUserApprover[]
   
   // User attendance for trainings
   userAttendances    UserAttendance[]
   trainingBookmarks  TrainingBookmark[]
+  paymentClaims      PaymentClaim[]
   
   // Form submissions
   formSubmissions FormSubmission[]
+  
+  // Notifications
+  notifications Notification[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -116,9 +122,24 @@ model Training {
   requestTrainings RequestTraining[]
   attendances      UserAttendance[]
   bookmarks        TrainingBookmark[]
+  paymentClaims    PaymentClaim[]
+  qrCodes          QrCode[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model QrCode {
+  id         String   @id @default(cuid())
+  trainingId String
+  training   Training @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+  token      String   @unique
+  date       DateTime // Specific date this QR code is for
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  @@unique([trainingId, date])
+  @@index([trainingId, expiresAt])
 }
 
 model TrainingBookmark {
@@ -149,6 +170,13 @@ enum PaymentType {
   NONE
 }
 
+enum PaymentClaimStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  PAID
+}
+
 enum TrainingMethod {
   CASH_IN_ADVANCE
   PAY_AND_CLAIM
@@ -167,6 +195,12 @@ model Setting {
   address              String?
   email                String?
   trainingReminderDays Int?     @default(7)
+  requiredTrainingHours Int?    @default(40) // Required training hours per year for each user
+  
+  // Notification Templates
+  newUserNotificationTitle String? @default("New User Registration")
+  newUserNotificationMessage String? @default("A new user {userName} has registered with email {userEmail}")
+  
   primaryColor         String?  @default("#3b82f6")
   secondaryColor       String?  @default("#8b5cf6")
   createdAt            DateTime @default(now())
@@ -194,6 +228,33 @@ model PasswordResetToken {
   userType  String // 'user' or 'admin'
   expiresAt DateTime // When the token becomes invalid (e.g., 1 hour from creation)
   createdAt DateTime @default(now())
+}
+
+model Notification {
+  id          String             @id @default(cuid())
+  userId      String
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  message     String             @db.Text
+  type        NotificationType   @default(INFO)
+  isRead      Boolean            @default(false)
+  link        String?            // Optional link to navigate to
+  metadata    Json?              // Additional data (e.g., userId of new user)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  
+  @@index([userId, isRead])
+  @@index([createdAt])
+}
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
+  NEW_USER
+  TRAINING
+  APPROVAL
 }
 
 enum MailType {
@@ -225,13 +286,23 @@ model SystemLicense {
   updatedAt    DateTime @updatedAt
 }
 
+model Grade {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  description String?
+
+  users User[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 // New models for admin panel
 
 model Designation {
   id          String  @id @default(cuid())
   name        String  @unique
   description String?
-  level       Int     @default(1)
 
   // Parent-Child relationship
   parentId String?
@@ -287,11 +358,25 @@ model ApprovalUser {
   trainingCategory   TrainingCategory @relation(fields: [trainingCategoryId], references: [id])
   description        String?
 
-  approvedBy       User[]            @relation("ApprovedBy")
+  approvers       ApprovalUserApprover[]
   requestTrainings RequestTraining[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model ApprovalUserApprover {
+  id             String       @id @default(cuid())
+  approvalUserId String
+  userId         String
+  level          Int
+
+  approvalUser ApprovalUser @relation(fields: [approvalUserId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([approvalUserId, userId])
+  @@index([approvalUserId, level])
+  @@index([userId, level])
 }
 
 model UserAttendance {
@@ -312,6 +397,31 @@ model UserAttendance {
   updatedAt DateTime @updatedAt
 
   @@unique([trainingId, userId, attendanceDate])
+}
+
+model PaymentClaim {
+  id                String             @id @default(cuid())
+  trainingId        String
+  training          Training           @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amountClaimed     Decimal            @db.Decimal(10, 2)
+  amountApproved    Decimal?           @db.Decimal(10, 2)
+  paymentStatus     PaymentClaimStatus @default(PENDING)
+  receiptPath       String?
+  receiptOriginalName String?
+  notes             String?            @db.Text
+  adminRemarks      String?            @db.Text
+  verifiedById      String?
+  submittedAt       DateTime           @default(now())
+  verifiedAt        DateTime?
+  paidAt            DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@unique([trainingId, userId])
+  @@index([paymentStatus])
+  @@index([submittedAt])
 }
 
 // Dynamic Form Builder Models

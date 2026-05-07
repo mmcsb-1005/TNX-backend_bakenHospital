@@ -19,6 +19,20 @@ export class ApprovalUserService {
       throw new Error('Training category not found');
     }
 
+    const levels = data.approvers.map((a) => a.level)
+    const invalidLevels = levels.filter((l) => !Number.isInteger(l) || l < 1 || l > 4)
+    if (invalidLevels.length > 0) {
+      throw new Error('Approver level must be an integer between 1 and 4')
+    }
+
+    const seen = new Set<string>()
+    for (const approver of data.approvers) {
+      if (seen.has(approver.userId)) {
+        throw new Error('Duplicate approver user is not allowed')
+      }
+      seen.add(approver.userId)
+    }
+
     return await this.approvalUserRepository.create(data);
   }
 
@@ -45,6 +59,22 @@ export class ApprovalUserService {
       });
       if (!trainingCategory) {
         throw new Error('Training category not found');
+      }
+    }
+
+    if (data.approvers) {
+      const levels = data.approvers.map((a) => a.level)
+      const invalidLevels = levels.filter((l) => !Number.isInteger(l) || l < 1 || l > 4)
+      if (invalidLevels.length > 0) {
+        throw new Error('Approver level must be an integer between 1 and 4')
+      }
+
+      const seen = new Set<string>()
+      for (const approver of data.approvers) {
+        if (seen.has(approver.userId)) {
+          throw new Error('Duplicate approver user is not allowed')
+        }
+        seen.add(approver.userId)
       }
     }
 

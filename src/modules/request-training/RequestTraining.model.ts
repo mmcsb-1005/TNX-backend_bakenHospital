@@ -1,3 +1,12 @@
+// Domain labels for request-training module
+export type RequestTrainingStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type ApprovalTrailAction = 'APPROVED' | 'REJECTED';
+export type TrainingTypeValue = 'IN_HOUSE' | 'EXTERNAL' | 'ONLINE';
+export type BondTypeValue = 'BONDED' | 'NON_BONDED';
+export type PaymentTypeValue = 'HRDCORP' | 'NONE';
+export type TrainingMethodValue = 'CASH_IN_ADVANCE' | 'PAY_AND_CLAIM';
+
+// Persisted request-training labels
 export interface RequestTrainingModel {
   id: string;
   requestName: string;
@@ -7,7 +16,7 @@ export interface RequestTrainingModel {
   approvalUserId?: string | null;
   currentApprovalLevel?: number | null;
   approvalTrail?: ApprovalTrailItem[] | null;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  status: RequestTrainingStatus;
   approvedAt?: Date | null;
   rejectedAt?: Date | null;
   approvalNotes?: string | null;
@@ -15,6 +24,7 @@ export interface RequestTrainingModel {
   updatedAt: Date;
 }
 
+// Create and update payload labels
 export interface CreateRequestTrainingInput {
   requestName: string;
   requestJustification?: string;
@@ -37,6 +47,7 @@ export interface UpdateRequestTrainingInput {
   approvalUserId?: string | null;
 }
 
+// Approval action labels
 export interface ApproveRequestInput {
   requestId: string;
   notes?: string;
@@ -53,23 +64,24 @@ export interface ApprovalTrailItem {
   level: number;
   actorUserId: string;
   actorName: string;
-  action: 'APPROVED' | 'REJECTED';
+  action: ApprovalTrailAction;
   notes?: string | null;
   actedAt: string;
 }
 
+// Proposed training payload labels
 export interface ProposedTrainingData {
   title: string;
   description?: string;
   organizer: string;
-  trainingType: 'IN_HOUSE' | 'EXTERNAL' | 'ONLINE';
+  trainingType: TrainingTypeValue;
   dateTimeStart: string;
   dateTimeEnd: string;
   venue: string;
-  bond: 'BONDED' | 'NON_BONDED';
-  typeOfPayment: 'HRDCORP' | 'NONE';
+  bond: BondTypeValue;
+  typeOfPayment: PaymentTypeValue;
   budgeted: boolean;
-  trainingMethod: 'CASH_IN_ADVANCE' | 'PAY_AND_CLAIM';
+  trainingMethod: TrainingMethodValue;
   sponsored?: string;
   accommodationCost?: number;
   travelCost?: number;
@@ -78,6 +90,7 @@ export interface ProposedTrainingData {
   categoryId?: string;
 }
 
+// User self-submission labels for propose-training flow
 export interface SubmitTrainingRequestInput {
   requestName: string;
   userId: string; // The user submitting the request

@@ -188,6 +188,17 @@ export class RequestTrainingService {
       let trainingId = requestTraining.trainingId || null;
 
       const existingTrail = this.normalizeApprovalTrail(requestTraining.approvalTrail);
+      const hasAlreadyActedAtLevel = existingTrail.some(
+        (item) =>
+          item.level === approvalContext.currentLevel &&
+          item.actorUserId === approverUser.id &&
+          (item.action === 'APPROVED' || item.action === 'REJECTED')
+      );
+
+      if (hasAlreadyActedAtLevel) {
+        throw new Error('You have already taken action for this approval level');
+      }
+
       const nextTrail: ApprovalTrailItem[] = [
         ...existingTrail,
         {
@@ -200,7 +211,54 @@ export class RequestTrainingService {
         },
       ];
 
-      const nextLevel = approvalContext.remainingLevels.find((level) => level < approvalContext.currentLevel) || null;
+      const approvedIdsAtCurrentLevel = new Set(
+        nextTrail
+          .filter((item) => item.level === approvalContext.currentLevel && item.action === 'APPROVED')
+          .map((item) => item.actorUserId)
+      );
+
+      const allApproversApprovedAtCurrentLevel = approvalContext.currentApprovers.every((approver) =>
+        approvedIdsAtCurrentLevel.has(approver.id)
+      );
+
+      if (!allApproversApprovedAtCurrentLevel) {
+        return tx.requestTraining.update({
+          where: { id: data.requestId },
+          data: {
+            currentApprovalLevel: approvalContext.currentLevel,
+            approvalNotes: data.notes || null,
+            approvalTrail: nextTrail as unknown as Prisma.InputJsonValue,
+          },
+          include: {
+            training: {
+              include: {
+                category: true,
+              },
+            },
+            participants: {
+              include: {
+                designation: true,
+              },
+            },
+            approvalUser: {
+              include: {
+                trainingCategory: true,
+                approvers: {
+                  include: {
+                    user: {
+                      include: {
+                        designation: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        });
+      }
+
+      const nextLevel = approvalContext.remainingLevels.find((level) => level > approvalContext.currentLevel) || null;
 
       if (nextLevel !== null) {
         const stagedRequest = await tx.requestTraining.update({
@@ -224,9 +282,13 @@ export class RequestTrainingService {
             approvalUser: {
               include: {
                 trainingCategory: true,
-                approvedBy: {
+                approvers: {
                   include: {
-                    designation: true,
+                    user: {
+                      include: {
+                        designation: true,
+                      },
+                    },
                   },
                 },
               },
@@ -277,9 +339,13 @@ export class RequestTrainingService {
           approvalUser: {
             include: {
               trainingCategory: true,
-              approvedBy: {
+              approvers: {
                 include: {
-                  designation: true,
+                  user: {
+                    include: {
+                      designation: true,
+                    },
+                  },
                 },
               },
             },
@@ -288,7 +354,7 @@ export class RequestTrainingService {
       });
     });
 
-    if (updatedRequest.status === 'PENDING') {
+    if (updatedRequest.status === 'PENDING' && updatedRequest.currentApprovalLevel !== approvalContext.currentLevel) {
       await this.notifyApproversForRequest(updatedRequest.id);
     }
 
@@ -347,9 +413,13 @@ export class RequestTrainingService {
         approvalUser: {
           include: {
             trainingCategory: true,
-            approvedBy: {
+            approvers: {
               include: {
-                designation: true,
+                user: {
+                  include: {
+                    designation: true,
+                  },
+                },
               },
             },
           },
@@ -359,44 +429,22 @@ export class RequestTrainingService {
   }
 
   async getPendingRequestsForApprover(userId: string) {
-    const approver = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        designation: true,
-      },
+    const assignments = await this.prisma.approvalUserApprover.findMany({
+      where: { userId },
+      select: { approvalUserId: true, level: true },
     });
 
-    const approverLevel = approver?.designation?.level;
-
-    // Find all approval users where the user is an approver
-    const approvalUsers = await this.prisma.approvalUser.findMany({
-      where: {
-        approvedBy: {
-          some: {
-            id: userId,
-          },
-        },
-      },
-    });
-
-    if (approvalUsers.length === 0) {
+    if (assignments.length === 0) {
       return [];
     }
 
-    const approvalUserIds = approvalUsers.map(au => au.id);
-
-    // Find all pending requests assigned to these approval users
-    return await this.prisma.requestTraining.findMany({
+    const pendingRequests = await this.prisma.requestTraining.findMany({
       where: {
-        approvalUserId: {
-          in: approvalUserIds,
-        },
         status: 'PENDING',
-        ...(approverLevel
-          ? {
-              currentApprovalLevel: approverLevel,
-            }
-          : {}),
+        OR: assignments.map((a) => ({
+          approvalUserId: a.approvalUserId,
+          currentApprovalLevel: a.level,
+        })),
       },
       include: {
         training: {
@@ -412,9 +460,13 @@ export class RequestTrainingService {
         approvalUser: {
           include: {
             trainingCategory: true,
-            approvedBy: {
+            approvers: {
               include: {
-                designation: true,
+                user: {
+                  include: {
+                    designation: true,
+                  },
+                },
               },
             },
           },
@@ -424,40 +476,37 @@ export class RequestTrainingService {
         createdAt: 'desc',
       },
     });
+
+    return pendingRequests.filter((request) => {
+      const currentLevel = request.currentApprovalLevel;
+      if (typeof currentLevel !== 'number') return true;
+      const trail = this.normalizeApprovalTrail(request.approvalTrail as unknown as Prisma.JsonValue);
+      return !trail.some(
+        (item) =>
+          item.level === currentLevel &&
+          item.actorUserId === userId &&
+          (item.action === 'APPROVED' || item.action === 'REJECTED')
+      );
+    });
   }
 
   async getAllRequestsForApprover(userId: string) {
-    const approver = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        designation: true,
-      },
+    const assignments = await this.prisma.approvalUserApprover.findMany({
+      where: { userId },
+      select: { approvalUserId: true, level: true },
     });
 
-    const approverLevel = approver?.designation?.level;
-
-    // Find all approval users where the user is an approver
-    const approvalUsers = await this.prisma.approvalUser.findMany({
-      where: {
-        approvedBy: {
-          some: {
-            id: userId,
-          },
-        },
-      },
-    });
-
-    if (approvalUsers.length === 0) {
+    if (assignments.length === 0) {
       return [];
     }
 
-    const approvalUserIds = approvalUsers.map(au => au.id);
+    const assignedApprovalUserIds = Array.from(new Set(assignments.map((a) => a.approvalUserId)));
 
     // Find all requests assigned to these approval users (regardless of status)
     const allRequests = await this.prisma.requestTraining.findMany({
       where: {
         approvalUserId: {
-          in: approvalUserIds,
+          in: assignedApprovalUserIds,
         },
       },
       include: {
@@ -474,9 +523,13 @@ export class RequestTrainingService {
         approvalUser: {
           include: {
             trainingCategory: true,
-            approvedBy: {
+            approvers: {
               include: {
-                designation: true,
+                user: {
+                  include: {
+                    designation: true,
+                  },
+                },
               },
             },
           },
@@ -492,11 +545,25 @@ export class RequestTrainingService {
         return true;
       }
 
-      if (!approverLevel) {
+      const currentLevel = request.currentApprovalLevel;
+      if (typeof currentLevel !== 'number') {
         return true;
       }
 
-      return request.currentApprovalLevel === approverLevel;
+      const isAssignedAtLevel = assignments.some(
+        (a) => a.approvalUserId === request.approvalUserId && a.level === currentLevel
+      );
+      if (!isAssignedAtLevel) {
+        return false;
+      }
+
+      const trail = this.normalizeApprovalTrail(request.approvalTrail as unknown as Prisma.JsonValue);
+      return !trail.some(
+        (item) =>
+          item.level === currentLevel &&
+          item.actorUserId === userId &&
+          (item.action === 'APPROVED' || item.action === 'REJECTED')
+      );
     });
   }
 
@@ -573,6 +640,33 @@ export class RequestTrainingService {
     });
   }
 
+  // Information Approver - Get combined data of approval user and request training
+  async getInformationApprover() {
+    return await this.prisma.requestTraining.findMany({
+      select: {
+        id: true,
+        requestName: true,
+        status: true,
+        createdAt: true,
+        approvalUser: {
+          select: {
+            id: true,
+            title: true,
+          },
+        },
+        training: {
+          select: {
+            id: true,
+            title: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
   async submitTrainingRequest(data: SubmitTrainingRequestInput) {
     // Validate user exists
     const user = await this.prisma.user.findUnique({
@@ -635,7 +729,7 @@ export class RequestTrainingService {
   }
 
   private async ensureRequestApprovalTemplate(): Promise<void> {
-    const requestApprovalType = 'REQUEST_APPROVAL' as MailType;
+    const requestApprovalType = MailType.REQUEST_APPROVAL;
 
     const existingTemplate = await this.prisma.mail.findFirst({
       where: { mailType: requestApprovalType },
@@ -647,22 +741,23 @@ export class RequestTrainingService {
 
     await this.prisma.mail.create({
       data: {
-        name: 'Request Approval Dummy Template',
+        name: 'Request Approval Notification Template',
         mailType: requestApprovalType,
         sendTrigger: 'MANUAL',
-        subject: 'Approval Required: {{requestName}}',
+        subject: '{{emailTitle}}',
         body: `
           <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 10px;">
             <h2 style="margin: 0 0 14px; color: #111827;">Training Request Needs Your Approval</h2>
-            <p style="margin: 0 0 16px; color: #374151;">Hi {{approverName}}, there is a new training request waiting for your review.</p>
+            <p style="margin: 0 0 16px; color: #374151;">{{intro}}</p>
             <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; margin-bottom: 16px;">
+              <p style="margin: 0 0 8px;"><strong>Approval Stage:</strong> {{levelLabel}}</p>
               <p style="margin: 0 0 8px;"><strong>Request:</strong> {{requestName}}</p>
               <p style="margin: 0 0 8px;"><strong>Training:</strong> {{trainingTitle}}</p>
               <p style="margin: 0 0 8px;"><strong>Submitted By:</strong> {{submittedBy}}</p>
               <p style="margin: 0;"><strong>Submitted At:</strong> {{submittedAt}}</p>
             </div>
-            <a href="{{approvalUrl}}" style="display: inline-block; background: #2563eb; color: #ffffff; text-decoration: none; padding: 10px 14px; border-radius: 8px; font-weight: 600;">Review Request</a>
-            <p style="margin-top: 18px; color: #6b7280; font-size: 12px;">This is a dummy template for delivery testing.</p>
+            <a href="{{approvalUrl}}" style="display: inline-block; background: #2563eb; color: #ffffff; text-decoration: none; padding: 10px 14px; border-radius: 8px; font-weight: 600;">{{ctaText}}</a>
+            <p style="margin-top: 18px; color: #6b7280; font-size: 12px;">This is an automated notification from the training system.</p>
           </div>
         `,
         templateVariables: {
@@ -672,6 +767,11 @@ export class RequestTrainingService {
           submittedBy: 'Requester name',
           submittedAt: 'Submission datetime',
           approvalUrl: 'Approval page URL',
+          levelLabel: 'Approval level label',
+          mailKind: 'NOTIFICATION or ACTION_REQUIRED',
+          emailTitle: 'Email subject/title',
+          intro: 'Intro message',
+          ctaText: 'CTA button label',
         } as Prisma.InputJsonValue,
         isActive: true,
       },
@@ -698,17 +798,18 @@ export class RequestTrainingService {
           },
           approvalUser: {
             include: {
-              approvedBy: {
+              approvers: {
                 select: {
-                  id: true,
-                  name: true,
-                  email: true,
-                  designation: {
+                  level: true,
+                  user: {
                     select: {
-                      level: true,
+                      id: true,
+                      name: true,
+                      email: true,
                     },
                   },
                 },
+                orderBy: [{ level: 'asc' }],
               },
             },
           },
@@ -722,13 +823,29 @@ export class RequestTrainingService {
         return;
       }
 
-      const approvers = request.approvalUser.approvedBy.filter((user) => !!user.email);
-      const currentLevel = request.currentApprovalLevel ?? this.extractApprovalLevels(request.approvalUser.approvedBy)[0] ?? null;
-      const approversAtCurrentLevel = approvers.filter(
-        (user) => user.designation?.level === currentLevel
+      const approverAssignments = request.approvalUser.approvers.filter((a) => !!a.user.email);
+      const levels = Array.from(new Set(approverAssignments.map((a) => a.level))).sort((a, b) => a - b);
+      const currentLevel = request.currentApprovalLevel ?? levels[0] ?? null;
+      const approversAtCurrentLevel = approverAssignments
+        .filter((a) => a.level === currentLevel)
+        .map((a) => a.user);
+
+      const trail = this.normalizeApprovalTrail(request.approvalTrail as unknown as Prisma.JsonValue);
+      const actedIdsAtCurrentLevel = new Set(
+        trail
+          .filter(
+            (item) =>
+              item.level === currentLevel &&
+              (item.action === 'APPROVED' || item.action === 'REJECTED')
+          )
+          .map((item) => item.actorUserId)
       );
 
-      if (approversAtCurrentLevel.length === 0) {
+      const approversToNotify = approversAtCurrentLevel.filter(
+        (user) => !actedIdsAtCurrentLevel.has(user.id)
+      );
+
+      if (approversToNotify.length === 0) {
         if (options.failOnError) {
           throw new Error('No approver email found for the current approval level.');
         }
@@ -747,7 +864,7 @@ export class RequestTrainingService {
       });
 
       const sendResults = await Promise.allSettled(
-        approversAtCurrentLevel.map(async (approver) => {
+        approversToNotify.map(async (approver) => {
           const basePayload = {
             approverName: approver.name || 'Approver',
             requestName: request.requestName,
@@ -758,14 +875,26 @@ export class RequestTrainingService {
             levelLabel,
           };
 
-          await MailService.sendTrainingApprovalNotification(approver.email as string, {
+          const notificationTitle = `New Request Notification (${levelLabel}): ${request.requestName}`;
+          const notificationIntro = `Hi ${basePayload.approverName}, a new training request has entered ${levelLabel.toLowerCase()} for your visibility.`;
+
+          await MailService.sendTemplateMail(MailType.REQUEST_APPROVAL, approver.email as string, {
             ...basePayload,
             mailKind: 'NOTIFICATION',
+            emailTitle: notificationTitle,
+            intro: notificationIntro,
+            ctaText: 'View Request Details',
           });
 
-          return MailService.sendTrainingApprovalNotification(approver.email as string, {
+          const actionTitle = `Action Required (${levelLabel}): ${request.requestName}`;
+          const actionIntro = `Hi ${basePayload.approverName}, please review and ${levelLabel.toLowerCase()} approve or reject this training request.`;
+
+          return MailService.sendTemplateMail(MailType.REQUEST_APPROVAL, approver.email as string, {
             ...basePayload,
             mailKind: 'ACTION_REQUIRED',
+            emailTitle: actionTitle,
+            intro: actionIntro,
+            ctaText: 'Approve / Reject Request',
           });
         }
         )
@@ -824,14 +953,14 @@ export class RequestTrainingService {
     return value as unknown as ApprovalTrailItem[];
   }
 
-  private extractApprovalLevels(users: Array<{ designation?: { level?: number | null } | null }>): number[] {
+  private extractApprovalLevels(approvers: Array<{ level: number }>): number[] {
     return Array.from(
       new Set(
-        users
-          .map((user) => user.designation?.level)
+        approvers
+          .map((approver) => approver.level)
           .filter((level): level is number => typeof level === 'number')
       )
-    ).sort((a, b) => b - a);
+    ).sort((a, b) => a - b);
   }
 
   private async resolveApprovalWorkflowContext(params: { approvalUserId?: string; categoryId?: string }) {
@@ -842,11 +971,7 @@ export class RequestTrainingService {
           ? { trainingCategoryId: params.categoryId }
           : undefined,
       include: {
-        approvedBy: {
-          include: {
-            designation: true,
-          },
-        },
+        approvers: true,
       },
       orderBy: {
         createdAt: 'asc',
@@ -854,11 +979,7 @@ export class RequestTrainingService {
     })
       ?? await this.prisma.approvalUser.findFirst({
         include: {
-          approvedBy: {
-            include: {
-              designation: true,
-            },
-          },
+          approvers: true,
         },
         orderBy: {
           createdAt: 'asc',
@@ -869,7 +990,7 @@ export class RequestTrainingService {
       throw new Error('No approval workflow is configured. Please configure approval users first.');
     }
 
-    const levels = this.extractApprovalLevels(approvalUser.approvedBy);
+    const levels = this.extractApprovalLevels(approvalUser.approvers);
     if (levels.length === 0) {
       throw new Error('No approver levels configured for the selected approval workflow.');
     }
@@ -886,10 +1007,15 @@ export class RequestTrainingService {
       include: {
         approvalUser: {
           include: {
-            approvedBy: {
+            approvers: {
               include: {
-                designation: true,
+                user: {
+                  include: {
+                    designation: true,
+                  },
+                },
               },
+              orderBy: [{ level: 'asc' }],
             },
           },
         },
@@ -900,16 +1026,16 @@ export class RequestTrainingService {
       throw new Error('No approval workflow configured for this request');
     }
 
-    const levels = this.extractApprovalLevels(request.approvalUser.approvedBy);
+    const levels = this.extractApprovalLevels(request.approvalUser.approvers);
     const currentLevel = request.currentApprovalLevel ?? levels[0];
 
     if (!currentLevel) {
       throw new Error('No current approval level found for this request');
     }
 
-    const currentApprovers = request.approvalUser.approvedBy.filter(
-      (user) => user.designation?.level === currentLevel
-    );
+    const currentApprovers = request.approvalUser.approvers
+      .filter((a) => a.level === currentLevel)
+      .map((a) => a.user);
 
     return {
       currentLevel,

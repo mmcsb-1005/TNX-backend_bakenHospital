@@ -246,4 +246,17 @@ export class RequestTrainingController {
       next(error);
     }
   };
+
+  getInformationApprover = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const data = await this.requestTrainingService.getInformationApprover();
+      res.status(200).json({
+        success: true,
+        data: data,
+        message: 'Information approver data retrieved successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
 }

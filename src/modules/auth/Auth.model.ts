@@ -6,7 +6,8 @@ export const User = prisma.user;
 export const PasswordResetToken = prisma.passwordResetToken;
 
 export interface LoginRequest {
-  email: string;    // Email for all users
+  userOrgId?: string; // Staff ID / User ID
+  email?: string; // Legacy support (fallback)
   password: string;
 }
 
@@ -31,6 +32,7 @@ export interface LoginResponse {
   user: {
     id: string;
     email?: string;
+    userOrgId?: string;
     name?: string;
     role: string;
   };
@@ -42,6 +44,7 @@ export interface JwtPayload {
   id: string;
   userId: string;
   email?: string;
+  userOrgId?: string;
   role: string;
 }
 
@@ -59,4 +62,3 @@ export interface ResetPasswordRequest {
   token: string;
   newPassword: string;
 }
-

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { DataRepository } from './Setting.repository';
-import fs from 'fs';
+import { v4 as uuidv4 } from 'uuid';
+import { getPublicUrlForObject, uploadObject, removeObject, tryExtractObjectPathFromPublicUrl } from '../../lib/supabaseAdmin';
 import path from 'path';
 
 interface DataController {
@@ -61,35 +62,36 @@ class DataControllerImpl implements DataController {
         return;
       }
 
-      // The 'path' from multer is now a local server path. We need the public-facing URL.
-      const logoPath = `/logo/${req.file.filename}`;
+      const extractedExt = path.extname(req.file.originalname || '').toLowerCase();
+      const extension = extractedExt && extractedExt.length <= 12 ? extractedExt : '';
 
-      // The 'filename' property holds the unique filename
-      const publicId = req.file.filename; // For local storage, this is just the filename
+      const objectPath = `logo/${uuidv4()}${extension}`;
+      await uploadObject({
+        objectPath,
+        body: req.file.buffer,
+        contentType: req.file.mimetype,
+      });
+
+      const logoPath = getPublicUrlForObject(objectPath);
+      const publicId = objectPath;
 
       // Get existing settings to check for old logo
       const settings = await DataRepository.getAllData();
       let updatedSetting;
       
       if (settings && settings.length > 0) {
-        // Delete old logo file if it exists
         const oldLogoPath = settings[0].logoPath;
-        if (oldLogoPath) {
-          // Extract filename from path (e.g., /logo/filename.png -> filename.png)
-          const oldFilename = oldLogoPath.split('/').pop();
-          if (oldFilename) {
-            // Construct full file path (from backend/src -> frontend/public/logo)
-            const oldFilePath = path.join(__dirname, '../../../frontend/public/logo', oldFilename);
-            
-            // Delete the old file if it exists
-            if (fs.existsSync(oldFilePath)) {
-              try {
-                fs.unlinkSync(oldFilePath);
-                console.log('Old logo deleted:', oldFilePath);
-              } catch (deleteError) {
-                console.error('Error deleting old logo:', deleteError);
-                // Continue even if delete fails - don't block the upload
-              }
+        const oldObjectPath = oldLogoPath ? tryExtractObjectPathFromPublicUrl(oldLogoPath) : null;
+        if (oldObjectPath) {
+          try {
+            await removeObject(oldObjectPath);
+          } catch (removeError) {
+            const message =
+              removeError instanceof Error ? removeError.message : String(removeError || '');
+            const isNotFound =
+              /not\s*found/i.test(message) || /no\s*such\s*key/i.test(message) || /\b404\b/.test(message);
+            if (!isNotFound) {
+              throw removeError;
             }
           }
         }
@@ -101,18 +103,24 @@ class DataControllerImpl implements DataController {
         updatedSetting = await DataRepository.createData({ logoPath });
       }
 
-      res.json({ 
+      res.json({
+        success: true,
+        data: {
+          logoPath,
+          publicId,
+          setting: updatedSetting,
+        },
         message: 'Logo uploaded successfully',
-        logoPath, // Returns the public URL path e.g., /logo/image.png
-        publicId, // Returns the filename
-        setting: updatedSetting, // Return the full updated setting
       });
 
     } catch (error) {
       console.error('Logo upload error:', error);
-      res.status(500).json({ 
-        error: error instanceof Error ? error.message : 'An error occurred during file upload.'
-      });
+      const status =
+        typeof (error as any)?.status === 'number' && (error as any).status >= 400 && (error as any).status < 600
+          ? (error as any).status
+          : 500
+      const message = error instanceof Error ? error.message : 'An error occurred during file upload.'
+      res.status(status).json({ error: message });
     }
   }
 

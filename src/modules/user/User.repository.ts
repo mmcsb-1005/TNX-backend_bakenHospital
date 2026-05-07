@@ -26,6 +26,8 @@ class UserRepositoryImpl implements UserRepository {
         position: true,
         designationId: true,
         designation: true,
+        gradeId: true,
+        grade: true,
         contactNumber: true,
         employmentDate: true,
         role: true,
@@ -40,7 +42,8 @@ class UserRepositoryImpl implements UserRepository {
     return await Model.findUnique({ 
       where: { id },
       include: {
-        designation: true
+        designation: true,
+        grade: true,
       }
     });
   }
@@ -62,6 +65,7 @@ class UserRepositoryImpl implements UserRepository {
       image: data.image,
       position: data.position,
       designationId: data.designationId,
+      gradeId: (data as any).gradeId,
       contactNumber: data.contactNumber,
       employmentDate: data.employmentDate,
       role: data.role,
@@ -72,6 +76,10 @@ class UserRepositoryImpl implements UserRepository {
     // Normalize optional scalar fields from form payloads.
     if (payload.designationId === '') {
       payload.designationId = null;
+    }
+
+    if ((payload as any).gradeId === '') {
+      (payload as any).gradeId = null;
     }
 
     if (payload.contactNumber === '') {

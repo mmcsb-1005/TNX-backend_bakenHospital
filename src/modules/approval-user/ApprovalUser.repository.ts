@@ -8,21 +8,29 @@ export class ApprovalUserRepository {
   }
 
   async create(data: CreateApprovalUserInput) {
-    const { approvedByIds, ...approvalData } = data;
+    const { approvers, ...approvalData } = data;
     
     return await this.prisma.approvalUser.create({
       data: {
         ...approvalData,
-        approvedBy: {
-          connect: approvedByIds.map(id => ({ id })),
+        approvers: {
+          create: approvers.map((approver) => ({
+            level: approver.level,
+            user: { connect: { id: approver.userId } },
+          })),
         },
       },
       include: {
         trainingCategory: true,
-        approvedBy: {
+        approvers: {
           include: {
-            designation: true,
+            user: {
+              include: {
+                designation: true,
+              },
+            },
           },
+          orderBy: [{ level: 'asc' }],
         },
       },
     });
@@ -32,14 +40,19 @@ export class ApprovalUserRepository {
     return await this.prisma.approvalUser.findMany({
       include: {
         trainingCategory: true,
-        approvedBy: {
+        approvers: {
           include: {
-            designation: true,
+            user: {
+              include: {
+                designation: true,
+              },
+            },
           },
+          orderBy: [{ level: 'asc' }],
         },
         _count: {
           select: {
-            approvedBy: true,
+            approvers: true,
           },
         },
       },
@@ -54,37 +67,61 @@ export class ApprovalUserRepository {
       where: { id },
       include: {
         trainingCategory: true,
-        approvedBy: {
+        approvers: {
           include: {
-            designation: true,
+            user: {
+              include: {
+                designation: true,
+              },
+            },
           },
+          orderBy: [{ level: 'asc' }],
         },
       },
     });
   }
 
   async update(id: string, data: UpdateApprovalUserInput) {
-    const { approvedByIds, ...updateData } = data;
-    
-    const updatePayload: any = { ...updateData };
-    
-    if (approvedByIds) {
-      updatePayload.approvedBy = {
-        set: approvedByIds.map(id => ({ id })),
-      };
-    }
+    const { approvers, ...updateData } = data;
 
-    return await this.prisma.approvalUser.update({
-      where: { id },
-      data: updatePayload,
-      include: {
-        trainingCategory: true,
-        approvedBy: {
-          include: {
-            designation: true,
+    return await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.approvalUser.update({
+        where: { id },
+        data: updateData,
+      });
+
+      if (approvers) {
+        await tx.approvalUserApprover.deleteMany({
+          where: { approvalUserId: id },
+        });
+
+        if (approvers.length > 0) {
+          await tx.approvalUserApprover.createMany({
+            data: approvers.map((a) => ({
+              approvalUserId: id,
+              userId: a.userId,
+              level: a.level,
+            })),
+          });
+        }
+      }
+
+      return tx.approvalUser.findUnique({
+        where: { id: updated.id },
+        include: {
+          trainingCategory: true,
+          approvers: {
+            include: {
+              user: {
+                include: {
+                  designation: true,
+                },
+              },
+            },
+            orderBy: [{ level: 'asc' }],
           },
         },
-      },
+      });
     });
   }
 

@@ -3,6 +3,11 @@ import { UserRepository } from './User.repository';
 import { UserExportService } from './UserExport.service';
 import { UserImportService } from './UserImport.service';
 import { UserProfileService } from '../../services/userProfileService';
+import { NotificationService } from '../notification/Notification.service';
+import prisma from '../../lib/prisma';
+import { v4 as uuidv4 } from 'uuid';
+import { getPublicUrlForObject, removeObject, tryExtractObjectPathFromPublicUrl, uploadObject } from '../../lib/supabaseAdmin';
+import path from 'path';
 
 interface UserController {
   getAllUser(req: Request, res: Response): Promise<void>;
@@ -12,6 +17,7 @@ interface UserController {
   deleteUser(req: Request, res: Response): Promise<void>;
   bulkDeleteUsers(req: Request, res: Response): Promise<void>;
   uploadPhoto(req: Request, res: Response): Promise<void>;
+  uploadMyAvatar(req: Request, res: Response): Promise<void>;
   importUsers(req: Request, res: Response): Promise<void>;
   downloadTemplate(req: Request, res: Response): Promise<void>;
   // Profile-specific methods
@@ -37,8 +43,33 @@ class UserControllerImpl implements UserController {
 
   async createUser(req: Request, res: Response): Promise<void> {
     const data = req.body;
-    const User = await UserRepository.createUser(data);
-    res.json(User);
+    const user = await UserRepository.createUser(data);
+    
+    // Create notification for all admins about new user registration
+    try {
+      // Get all admin users
+      const adminUsers = await prisma.user.findMany({
+        where: { role: 'ADMIN' },
+        select: { id: true }
+      });
+      const adminUserIds = adminUsers.map((admin) => admin.id);
+      
+      if (adminUserIds.length > 0) {
+        await NotificationService.createFromTemplate(
+          'NEW_USER',
+          {
+            userName: user.name || 'Unknown User',
+            userEmail: user.email || 'No email',
+          },
+          adminUserIds
+        );
+      }
+    } catch (notificationError) {
+      // Log error but don't fail user creation
+      console.error('Failed to create notification for new user:', notificationError);
+    }
+    
+    res.json(user);
   }
 
   async updateUser(req: Request, res: Response): Promise<void> {
@@ -53,12 +84,12 @@ class UserControllerImpl implements UserController {
       const message = error instanceof Error ? error.message : 'Failed to update user';
 
       if (message.includes('Unique constraint failed')) {
-        res.status(409).json({ error: 'Email or staff ID already exists' });
+        res.status(409).json({ error: 'Staff ID already exists' });
         return;
       }
 
       if (message.includes('Foreign key constraint failed')) {
-        res.status(400).json({ error: 'Selected designation is invalid' });
+        res.status(400).json({ error: 'Selected designation or grade is invalid' });
         return;
       }
 
@@ -133,31 +164,31 @@ class UserControllerImpl implements UserController {
 
   async uploadPhoto(req: Request, res: Response): Promise<void> {
     try {
-      console.log('Upload photo request received');
-      console.log('File received:', !!req.file);
-      
       if (!req.file) {
-        console.log('No file in request');
         res.status(400).json({ error: 'No file uploaded' });
         return;
       }
 
-      console.log('File details:', {
-        originalname: req.file.originalname,
-        mimetype: req.file.mimetype,
-        size: req.file.size
+      const extractedExt = path.extname(req.file.originalname || '').toLowerCase();
+      const extension = extractedExt && extractedExt.length <= 12 ? extractedExt : '';
+
+      const objectPath = `staff-photos/${uuidv4()}${extension}`;
+      await uploadObject({
+        objectPath,
+        body: req.file.buffer,
+        contentType: req.file.mimetype,
       });
 
-      // The 'path' property from multer-storage-cloudinary is the public URL
-      const photoPath = (req.file as any).path; 
-      const publicId = (req.file as any).filename;
+      const photoPath = getPublicUrlForObject(objectPath);
+      const publicId = objectPath;
 
-      console.log('Upload successful:', { photoPath, publicId });
-
-      res.json({ 
+      res.json({
+        success: true,
+        data: {
+          photoPath,
+          publicId,
+        },
         message: 'Photo uploaded successfully',
-        photoPath, // Returns the Cloudinary URL
-        publicId, // Can be used for future deletion
       });
 
       // NOTE: The photoPath URL still needs to be saved to the specific 
@@ -166,9 +197,83 @@ class UserControllerImpl implements UserController {
       
     } catch (error) {
       console.error('User photo upload error:', error);
-      res.status(500).json({ 
-        error: error instanceof Error ? error.message : 'An error occurred during file upload.'
+      const status =
+        typeof (error as any)?.status === 'number' && (error as any).status >= 400 && (error as any).status < 600
+          ? (error as any).status
+          : 500
+      res.status(status).json({
+        error: error instanceof Error ? error.message : 'An error occurred during file upload.',
       });
+    }
+  }
+
+  async uploadMyAvatar(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.id as string | undefined
+      if (!userId) {
+        res.status(401).json({ error: 'User not authenticated' })
+        return
+      }
+
+      if (!req.file) {
+        res.status(400).json({ error: 'No file uploaded' })
+        return
+      }
+
+      const extractedExt = path.extname(req.file.originalname || '').toLowerCase()
+      const extension = extractedExt && extractedExt.length <= 12 ? extractedExt : ''
+
+      const objectPath = `staff-photos/${userId}/${uuidv4()}${extension}`
+      await uploadObject({
+        objectPath,
+        body: req.file.buffer,
+        contentType: req.file.mimetype,
+      })
+
+      const image = getPublicUrlForObject(objectPath)
+
+      const existing = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { image: true },
+      })
+
+      const oldObjectPath = existing?.image ? tryExtractObjectPathFromPublicUrl(existing.image) : null
+      if (oldObjectPath) {
+        try {
+          await removeObject(oldObjectPath)
+        } catch (removeError) {
+          const message = removeError instanceof Error ? removeError.message : String(removeError || '')
+          const isNotFound =
+            /not\s*found/i.test(message) || /no\s*such\s*key/i.test(message) || /\b404\b/.test(message)
+          if (!isNotFound) {
+            throw removeError
+          }
+        }
+      }
+
+      const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: { image },
+      })
+
+      res.json({
+        success: true,
+        data: {
+          image,
+          publicId: objectPath,
+          user: updatedUser,
+        },
+        message: 'Avatar uploaded successfully',
+      })
+    } catch (error) {
+      console.error('User avatar upload error:', error)
+      const status =
+        typeof (error as any)?.status === 'number' && (error as any).status >= 400 && (error as any).status < 600
+          ? (error as any).status
+          : 500
+      res.status(status).json({
+        error: error instanceof Error ? error.message : 'An error occurred during file upload.',
+      })
     }
   }
 

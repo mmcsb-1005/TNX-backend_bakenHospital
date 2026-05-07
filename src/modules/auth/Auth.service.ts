@@ -33,10 +33,27 @@ class AuthServiceImpl implements AuthService {
   }
 
   async login(loginData: LoginRequest): Promise<LoginResponse> {
-    const { email, password } = loginData;
+    const userOrgId = loginData.userOrgId?.trim() || '';
+    const emailFromBody = loginData.email?.trim().toLowerCase() || '';
+    const password = loginData.password;
 
-    // Find user by email
-    const user = await AuthRepository.findUserByEmail(email);
+    const email = !emailFromBody && userOrgId.includes('@')
+      ? userOrgId.toLowerCase()
+      : emailFromBody;
+
+    const userOrgIdLookup = email && !emailFromBody ? '' : userOrgId;
+
+    const user = userOrgIdLookup
+      ? await AuthRepository.findUserByUserOrgId(userOrgIdLookup)
+      : email
+        ? await (async () => {
+            const users = await AuthRepository.findUsersByEmail(email)
+            if (users.length !== 1) {
+              throw new Error('Multiple accounts share this email. Please login using User ID.')
+            }
+            return users[0]
+          })()
+        : null;
     if (!user) throw new Error('Invalid credentials');
 
     if (!user.password) {
@@ -52,6 +69,7 @@ class AuthServiceImpl implements AuthService {
       id: user.id,
       userId: user.id,
       email: user.email,
+      userOrgId: user.userOrgId,
       role: user.role
     };
 
@@ -72,6 +90,7 @@ class AuthServiceImpl implements AuthService {
       user: {
         id: user.id,
         email: user.email,
+        userOrgId: user.userOrgId,
         name: user.name,
         role: user.role
       },
@@ -96,11 +115,6 @@ class AuthServiceImpl implements AuthService {
     const adminCount = await AuthRepository.countAdminUsers();
     if (adminCount > 0) {
       throw new Error('Admin account already exists. Please log in.');
-    }
-
-    const existingUser = await AuthRepository.findUserByEmail(email);
-    if (existingUser) {
-      throw new Error('Email is already in use');
     }
 
     const hashedPassword = await this.hashPassword(password);
@@ -155,13 +169,20 @@ class AuthServiceImpl implements AuthService {
     const { email, appBaseUrl } = data;
 
     // 1. Find the user
-    const user = await AuthRepository.findUserByEmail(email);
+    const users = await AuthRepository.findUsersByEmail(email.trim().toLowerCase());
+    if (users.length !== 1) {
+      return;
+    }
+    const user = users[0];
 
     if (!user) {
       // CRITICAL SECURITY STEP: Do NOT throw an error or reveal the user doesn't exist.
       // This prevents bots from harvesting valid emails.
       console.warn(`Attempted password reset for unknown email: ${email}`);
       return; // Exit gracefully, but let the controller return success message.
+    }
+    if (!user.email) {
+      return;
     }
 
     // 2. Generate secure token (e.g., 64 characters long)
@@ -225,5 +246,3 @@ class AuthServiceImpl implements AuthService {
 }
 
 export const AuthService = new AuthServiceImpl();
-
-

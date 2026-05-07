@@ -11,7 +11,6 @@ export class DesignationRepository {
     return await this.prisma.designation.create({
       data: {
         ...data,
-        level: data.level || 1,
       },
       include: {
         _count: { select: { users: true } },
@@ -29,7 +28,7 @@ export class DesignationRepository {
         children: true,
       },
       orderBy: {
-        level: 'asc',
+        name: 'asc',
       },
     });
   }

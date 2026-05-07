@@ -2,59 +2,10 @@
 
 import { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
-import { v4 as uuidv4 } from 'uuid';
-
-// Define storage for different upload types
-
-// --- Local Storage for Logos ---
-// From backend/src/middleware -> go up to workspace root -> frontend/public/logo
-const logoStoragePath = path.join(__dirname, '../../../frontend/public/logo');
-
-// From backend/src/middleware -> go up to workspace root -> frontend/public/training
-const trainingStoragePath = path.join(__dirname, '../../../frontend/public/training');
-
-// Ensure the logo directory exists
-if (!fs.existsSync(logoStoragePath)) {
-  fs.mkdirSync(logoStoragePath, { recursive: true });
-}
-
-if (!fs.existsSync(trainingStoragePath)) {
-  fs.mkdirSync(trainingStoragePath, { recursive: true });
-}
-
-// Log the resolved path for debugging
-console.log('Logo storage path:', logoStoragePath);
-console.log('Training storage path:', trainingStoragePath);
-
-const localLogoStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, logoStoragePath);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = `${uuidv4()}${path.extname(file.originalname)}`;
-    cb(null, uniqueSuffix);
-  }
-});
-
-const localTrainingStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, trainingStoragePath);
-  },
-  filename: (_req, file, cb) => {
-    const uniqueSuffix = `${uuidv4()}${path.extname(file.originalname)}`;
-    cb(null, uniqueSuffix);
-  }
-});
-
-// --- Cloudinary Storage for Staff Photos (as an example of keeping both) ---
-import { createCloudinaryStorage } from '../utils/cloudinary';
-const staffPhotoStorage = createCloudinaryStorage('staff_photos');
-
+const memoryStorage = multer.memoryStorage()
 
 // 2. File Filter (remains the same)
-const fileFilter = (req: Request, file: any, cb: any) => {
+const imageFileFilter = (req: Request, file: any, cb: any) => {
     // Add 'image/svg' to accommodate differences in client mimetypes
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/svg'];
     
@@ -65,15 +16,35 @@ const fileFilter = (req: Request, file: any, cb: any) => {
     }
 };
 
+const receiptFileFilter = (_req: Request, file: any, cb: any) => {
+    const allowedTypes = [
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'image/webp',
+      'application/pdf',
+    ];
+
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Invalid receipt file type (${file.mimetype}). Only JPG, PNG, WEBP, and PDF are allowed.`));
+    }
+};
+
 /**
  * Generic multer upload factory
  */
-const createUploadMiddleware = (storage: multer.StorageEngine, fieldName: string = 'image') => {
+const createUploadMiddleware = (
+  fieldName: string = 'image',
+  fileFilter: multer.Options['fileFilter'] = imageFileFilter,
+  maxFileSizeMb = 5,
+) => {
   const upload = multer({
-    storage: storage,
+    storage: memoryStorage,
     fileFilter: fileFilter,
     limits: {
-      fileSize: 5 * 1024 * 1024, // 5MB max file size
+      fileSize: maxFileSizeMb * 1024 * 1024,
     }
   });
 
@@ -82,19 +53,29 @@ const createUploadMiddleware = (storage: multer.StorageEngine, fieldName: string
 };
 
 /**
- * Middleware for logo upload using LOCAL STORAGE
+ * Middleware for logo upload (Supabase Storage via controllers)
  */
-export const logoUploadMiddleware = createUploadMiddleware(localLogoStorage, 'logo');
+export const logoUploadMiddleware = createUploadMiddleware('logo', imageFileFilter, 1);
 
 /**
- * Middleware for training image upload using LOCAL STORAGE
+ * Middleware for training image upload (Supabase Storage via controllers)
  */
-export const trainingImageUploadMiddleware = createUploadMiddleware(localTrainingStorage, 'trainingImage');
+export const trainingImageUploadMiddleware = createUploadMiddleware('trainingImage', imageFileFilter, 1);
 
 /**
- * Middleware for staff photo upload using Cloudinary
+ * Middleware for receipt upload (Supabase Storage via controllers)
  */
-export const staffPhotoUploadMiddleware = createUploadMiddleware(staffPhotoStorage, 'photo');
+export const receiptUploadMiddleware = createUploadMiddleware('receipt', receiptFileFilter, 10);
+
+/**
+ * Middleware for payment proof upload (PDF or image)
+ */
+export const paymentProofUploadMiddleware = createUploadMiddleware('paymentProof', receiptFileFilter, 1);
+
+/**
+ * Middleware for staff photo upload (Supabase Storage via controllers)
+ */
+export const staffPhotoUploadMiddleware = createUploadMiddleware('photo', imageFileFilter, 1);
 
 /**
  * Error handling middleware for multer errors (remains the same)

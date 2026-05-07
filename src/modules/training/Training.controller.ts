@@ -1,11 +1,13 @@
 import { Request, Response } from 'express'
 import { prisma } from '../../lib/prisma'
+import { PaymentClaimStatus, Prisma } from '@prisma/client'
 import { TrainingImportService } from './TrainingImport.service'
 import { TrainingExportService } from './TrainingExport.service'
 import QRCode from 'qrcode'
 import { v4 as uuidv4 } from 'uuid'
 import fs from 'fs'
 import path from 'path'
+import { getPublicUrlForObject, uploadObject, removeObject, tryExtractObjectPathFromPublicUrl } from '../../lib/supabaseAdmin'
 
 const getAuthenticatedUserId = (req: Request) => req.user?.id
 
@@ -28,13 +30,23 @@ export class TrainingController {
         })
       }
 
-      const imagePath = `/training/${req.file.filename}`
+      const extractedExt = path.extname(req.file.originalname || '').toLowerCase()
+      const extension = extractedExt && extractedExt.length <= 12 ? extractedExt : ''
+
+      const objectPath = `training-image/${uuidv4()}${extension}`
+      await uploadObject({
+        objectPath,
+        body: req.file.buffer,
+        contentType: req.file.mimetype,
+      })
+
+      const imagePath = getPublicUrlForObject(objectPath)
 
       return res.status(200).json({
         success: true,
         data: {
           imagePath,
-          filename: req.file.filename
+          publicId: objectPath
         },
         message: 'Training image uploaded successfully'
       })
@@ -43,6 +55,170 @@ export class TrainingController {
         success: false,
         message: 'Error uploading training image',
         error: error.message
+      })
+    }
+  }
+
+  static async getPaymentSubmissionTrainings(req: Request, res: Response) {
+    try {
+      const userId = getAuthenticatedUserId(req)
+      if (!userId) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' })
+      }
+
+      const trainings = await prisma.training.findMany({
+        select: {
+          id: true,
+          title: true,
+          organizer: true,
+          dateTimeStart: true,
+          dateTimeEnd: true,
+          venue: true,
+          updatedAt: true,
+          paymentClaims: {
+            where: { userId },
+            select: {
+              paymentStatus: true,
+              receiptPath: true,
+              receiptOriginalName: true,
+              updatedAt: true,
+            },
+            take: 1,
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      })
+
+      const data = trainings.map(t => {
+        const claim = t.paymentClaims?.[0]
+        const isPaid = claim?.paymentStatus === PaymentClaimStatus.PAID && Boolean(claim.receiptPath)
+        return {
+          id: t.id,
+          title: t.title,
+          organizer: t.organizer,
+          dateTimeStart: t.dateTimeStart,
+          dateTimeEnd: t.dateTimeEnd,
+          venue: t.venue,
+          paymentStatus: isPaid ? 'PAYMENT_SUCCESS' : 'UNPAID',
+          paymentProofPath: claim?.receiptPath ?? null,
+          paymentProofOriginalName: claim?.receiptOriginalName ?? null,
+          updatedAt: claim?.updatedAt ?? t.updatedAt,
+        }
+      })
+
+      return res.status(200).json({
+        success: true,
+        data,
+        message: 'Payment submission trainings retrieved successfully',
+      })
+    } catch (error: any) {
+      return res.status(500).json({
+        success: false,
+        message: 'Error retrieving payment submission trainings',
+        error: error?.message,
+      })
+    }
+  }
+
+  static async uploadPaymentProof(req: Request, res: Response) {
+    try {
+      const trainingId = req.params.id as string
+      const userId = getAuthenticatedUserId(req)
+
+      if (!userId) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' })
+      }
+
+      if (!trainingId) {
+        return res.status(400).json({ success: false, message: 'Training ID is required' })
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ success: false, message: 'No file uploaded' })
+      }
+
+      const training = await prisma.training.findUnique({ where: { id: trainingId }, select: { id: true } })
+
+      if (!training) {
+        return res.status(404).json({ success: false, message: 'Training not found' })
+      }
+
+      const extractedExt = path.extname(req.file.originalname || '').toLowerCase()
+      const extension = extractedExt && extractedExt.length <= 12 ? extractedExt : ''
+
+      const objectPath = `payment-submissions/${trainingId}/${userId}/${uuidv4()}${extension}`
+      await uploadObject({
+        objectPath,
+        body: req.file.buffer,
+        contentType: req.file.mimetype,
+      })
+
+      const receiptPath = getPublicUrlForObject(objectPath)
+      const receiptOriginalName = req.file.originalname
+
+      const existingClaim = await prisma.paymentClaim.findUnique({
+        where: { trainingId_userId: { trainingId, userId } },
+        select: { id: true, receiptPath: true },
+      })
+
+      const oldObjectPath = existingClaim?.receiptPath ? tryExtractObjectPathFromPublicUrl(existingClaim.receiptPath) : null
+      if (oldObjectPath) {
+        try {
+          await removeObject(oldObjectPath)
+        } catch (removeError) {
+          const message = removeError instanceof Error ? removeError.message : String(removeError || '')
+          const isNotFound =
+            /not\s*found/i.test(message) || /no\s*such\s*key/i.test(message) || /\b404\b/.test(message)
+          if (!isNotFound) {
+            throw removeError
+          }
+        }
+      }
+
+      const claim = await prisma.paymentClaim.upsert({
+        where: { trainingId_userId: { trainingId, userId } },
+        create: {
+          trainingId,
+          userId,
+          amountClaimed: new Prisma.Decimal(0),
+          paymentStatus: PaymentClaimStatus.PAID,
+          receiptPath,
+          receiptOriginalName,
+          paidAt: new Date(),
+        },
+        update: {
+          paymentStatus: PaymentClaimStatus.PAID,
+          receiptPath,
+          receiptOriginalName,
+          paidAt: new Date(),
+        },
+        select: {
+          id: true,
+          paymentStatus: true,
+          receiptPath: true,
+          receiptOriginalName: true,
+          updatedAt: true,
+        },
+      })
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          id: trainingId,
+          paymentStatus: 'PAYMENT_SUCCESS',
+          paymentProofPath: claim.receiptPath,
+          paymentProofOriginalName: claim.receiptOriginalName,
+          updatedAt: claim.updatedAt,
+        },
+        message: 'Payment proof uploaded successfully',
+      })
+    } catch (error: any) {
+      const status =
+        typeof error?.status === 'number' && error.status >= 400 && error.status < 600 ? error.status : 500
+      return res.status(status).json({
+        success: false,
+        message: 'Error uploading payment proof',
+        error: error?.message,
       })
     }
   }
@@ -399,18 +575,10 @@ export class TrainingController {
         duration = TrainingController.calculateDuration(startDate, endDate)
       }
 
-      // If uploading a new image, remove old image from frontend/public/training
       if (imagePath && existingTraining.imagePath && existingTraining.imagePath !== imagePath) {
-        const oldFilename = existingTraining.imagePath.split('/').pop()
-        if (oldFilename) {
-          const oldFilePath = path.join(__dirname, '../../../frontend/public/training', oldFilename)
-          if (fs.existsSync(oldFilePath)) {
-            try {
-              fs.unlinkSync(oldFilePath)
-            } catch (_deleteErr) {
-              // Do not fail update if cleanup fails
-            }
-          }
+        const oldObjectPath = tryExtractObjectPathFromPublicUrl(existingTraining.imagePath)
+        if (oldObjectPath) {
+          await removeObject(oldObjectPath)
         }
       }
 
@@ -472,16 +640,9 @@ export class TrainingController {
       }
 
       if (existingTraining.imagePath) {
-        const oldFilename = existingTraining.imagePath.split('/').pop()
-        if (oldFilename) {
-          const oldFilePath = path.join(__dirname, '../../../frontend/public/training', oldFilename)
-          if (fs.existsSync(oldFilePath)) {
-            try {
-              fs.unlinkSync(oldFilePath)
-            } catch (_deleteErr) {
-              // Ignore cleanup errors during delete flow
-            }
-          }
+        const oldObjectPath = tryExtractObjectPathFromPublicUrl(existingTraining.imagePath)
+        if (oldObjectPath) {
+          await removeObject(oldObjectPath)
         }
       }
 
@@ -624,6 +785,7 @@ export class TrainingController {
   static async generateQRCode(req: Request, res: Response) {
     try {
       const { id } = req.params
+      const { date } = req.body // Optional date parameter for daily QR codes
       
       // Check if training exists
       const training = await prisma.training.findUnique({
@@ -637,25 +799,53 @@ export class TrainingController {
         })
       }
 
-      // Generate unique token
-      const token = uuidv4()
       const generatedAt = new Date()
-      const expiresAt = new Date(generatedAt.getTime() + 24 * 60 * 60 * 1000) // 24 hours
+      const defaultExpiresAt = new Date(generatedAt.getTime() + 7 * 24 * 60 * 60 * 1000) // 1 week
+      const qrDate = date ? new Date(date) : generatedAt
 
-      // Update training with QR code token
-      const updatedTraining = await prisma.training.update({
-        where: { id: id as string },
-        data: {
-          qrCodeToken: token,
-          qrCodeGeneratedAt: generatedAt,
-          qrCodeExpiresAt: expiresAt
+      // Reuse existing QR code if it already exists for that date and is still valid
+      let qrCode = await prisma.qrCode.findFirst({
+        where: {
+          trainingId: id as string,
+          date: qrDate
         }
       })
 
-      // Generate QR code data URL
+      let token: string
+      let expiresAt: Date
+
+      if (qrCode && qrCode.expiresAt > new Date()) {
+        token = qrCode.token
+        expiresAt = qrCode.expiresAt
+      } else {
+        token = uuidv4()
+        expiresAt = defaultExpiresAt
+
+        if (qrCode) {
+          qrCode = await prisma.qrCode.update({
+            where: { id: qrCode.id },
+            data: {
+              token,
+              expiresAt
+            }
+          })
+        } else {
+          qrCode = await prisma.qrCode.create({
+            data: {
+              trainingId: id as string,
+              token: token,
+              date: qrDate,
+              expiresAt: expiresAt
+            }
+          })
+        }
+      }
+
+      // Generate QR code data URL with date-specific information
       const qrData = JSON.stringify({
         trainingId: id,
         token: token,
+        date: qrCode.date.toISOString().split('T')[0], // Date in YYYY-MM-DD format
         timestamp: generatedAt.toISOString()
       })
 
@@ -665,14 +855,29 @@ export class TrainingController {
         margin: 2
       })
 
+      // Save QR code as file in frontend/public/qr-generate
+      const fileName = `qr_${id}_${qrCode.date.toISOString().split('T')[0]}_${token.slice(0, 8)}.png`
+      const qrDirPath = path.join(__dirname, '../../../../frontend/public/qr-generate')
+      
+      if (!fs.existsSync(qrDirPath)) {
+        fs.mkdirSync(qrDirPath, { recursive: true })
+      }
+
+      const filePath = path.join(qrDirPath, fileName)
+      const base64Data = qrCodeDataURL.replace(/^data:image\/png;base64,/, '')
+      fs.writeFileSync(filePath, base64Data, 'base64')
+      
+      const qrFilePath = `/qr-generate/${fileName}`
+
       return res.status(200).json({
         success: true,
         data: {
-          training: updatedTraining,
+          training: training,
           qrCodeDataURL,
+          qrFilePath,
           expiresAt
         },
-        message: 'QR code generated successfully'
+        message: 'QR code generated and saved successfully'
       })
     } catch (error: any) {
       console.error('Error generating QR code:', error)
@@ -688,6 +893,7 @@ export class TrainingController {
   static async getQRCode(req: Request, res: Response) {
     try {
       const { id } = req.params
+      const { date } = req.query // Optional date parameter
       
       const training = await prisma.training.findUnique({
         where: { id: id as string }
@@ -715,10 +921,11 @@ export class TrainingController {
         })
       }
 
-      // Regenerate QR code data URL from stored token
+      // Regenerate QR code data URL from stored token (include date if provided)
       const qrData = JSON.stringify({
         trainingId: id,
         token: training.qrCodeToken,
+        date: date || null,
         timestamp: training.qrCodeGeneratedAt?.toISOString()
       })
 
@@ -742,6 +949,275 @@ export class TrainingController {
       return res.status(500).json({
         success: false,
         message: 'Error retrieving QR code',
+        error: error.message
+      })
+    }
+  }
+
+  // Get QR codes for training by date
+  static async getQRCodesByDate(req: Request, res: Response) {
+    try {
+      const { id } = req.params
+      const { date } = req.query
+
+      const training = await prisma.training.findUnique({
+        where: { id: id as string }
+      })
+
+      if (!training) {
+        return res.status(404).json({
+          success: false,
+          message: 'Training not found'
+        })
+      }
+
+      if (!date) {
+        return res.status(400).json({
+          success: false,
+          message: 'Date parameter is required'
+        })
+      }
+
+      // Find QR code for the specific date
+      const qrCode = await prisma.qrCode.findFirst({
+        where: {
+          trainingId: id as string,
+          date: new Date(date as string),
+          expiresAt: {
+            gt: new Date() // Not expired
+          }
+        }
+      })
+
+      if (!qrCode) {
+        return res.status(404).json({
+          success: false,
+          message: 'QR code not found for this date'
+        })
+      }
+
+      // Regenerate QR code data URL from stored token
+      const qrData = JSON.stringify({
+        trainingId: id,
+        token: qrCode.token,
+        date: qrCode.date.toISOString().split('T')[0],
+        timestamp: qrCode.createdAt.toISOString()
+      })
+
+      const qrCodeDataURL = await QRCode.toDataURL(qrData, {
+        errorCorrectionLevel: 'H',
+        width: 400,
+        margin: 2
+      })
+
+      // Save QR code as file in frontend/public/qr-generate
+      const fileName = `qr_${id}_${qrCode.date.toISOString().split('T')[0]}_${qrCode.token.slice(0, 8)}.png`
+      const qrDirPath = path.join(__dirname, '../../../../frontend/public/qr-generate')
+      
+      if (!fs.existsSync(qrDirPath)) {
+        fs.mkdirSync(qrDirPath, { recursive: true })
+      }
+
+      const filePath = path.join(qrDirPath, fileName)
+      const base64Data = qrCodeDataURL.replace(/^data:image\/png;base64,/, '')
+      fs.writeFileSync(filePath, base64Data, 'base64')
+      
+      const qrFilePath = `/qr-generate/${fileName}`
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          training,
+          qrCodeDataURL,
+          qrFilePath,
+          expiresAt: qrCode.expiresAt
+        },
+        message: 'QR code retrieved and saved successfully'
+      })
+    } catch (error: any) {
+      console.error('Error retrieving QR code:', error)
+      return res.status(500).json({
+        success: false,
+        message: 'Error retrieving QR code',
+        error: error.message
+      })
+    }
+  }
+
+  // Get all QR codes for a training
+  static async getAllQRCodes(req: Request, res: Response) {
+    try {
+      const { id } = req.params
+
+      const training = await prisma.training.findUnique({
+        where: { id: id as string }
+      })
+
+      if (!training) {
+        return res.status(404).json({
+          success: false,
+          message: 'Training not found'
+        })
+      }
+
+      const qrCodes = await prisma.qrCode.findMany({
+        where: {
+          trainingId: id as string,
+          expiresAt: {
+            gt: new Date()
+          }
+        },
+        orderBy: {
+          date: 'asc'
+        }
+      })
+
+      const qrCodesWithData = await Promise.all(qrCodes.map(async (qrCode) => {
+        const qrData = JSON.stringify({
+          trainingId: id,
+          token: qrCode.token,
+          date: qrCode.date.toISOString().split('T')[0],
+          timestamp: qrCode.createdAt.toISOString()
+        })
+
+        const qrCodeDataURL = await QRCode.toDataURL(qrData, {
+          errorCorrectionLevel: 'H',
+          width: 400,
+          margin: 2
+        })
+
+        const fileName = `qr_${id}_${qrCode.date.toISOString().split('T')[0]}_${qrCode.token.slice(0, 8)}.png`
+        const qrDirPath = path.join(__dirname, '../../../../frontend/public/qr-generate')
+        
+        if (!fs.existsSync(qrDirPath)) {
+          fs.mkdirSync(qrDirPath, { recursive: true })
+        }
+
+        const filePath = path.join(qrDirPath, fileName)
+        const base64Data = qrCodeDataURL.replace(/^data:image\/png;base64,/, '')
+        fs.writeFileSync(filePath, base64Data, 'base64')
+        
+        return {
+          date: qrCode.date.toISOString().split('T')[0],
+          token: qrCode.token,
+          qrCodeDataURL,
+          qrFilePath: `/qr-generate/${fileName}`,
+          expiresAt: qrCode.expiresAt
+        }
+      }))
+
+      return res.status(200).json({
+        success: true,
+        data: qrCodesWithData,
+        message: 'All QR codes retrieved successfully'
+      })
+    } catch (error: any) {
+      console.error('Error retrieving all QR codes:', error)
+      return res.status(500).json({
+        success: false,
+        message: 'Error retrieving all QR codes',
+        error: error.message
+      })
+    }
+  }
+
+  // Bulk generate QR codes for all training days
+  static async bulkGenerateQRCodes(req: Request, res: Response) {
+    try {
+      const { id } = req.params
+      const { dates } = req.body // Array of date strings
+
+      if (!dates || !Array.isArray(dates) || dates.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Dates array is required'
+        })
+      }
+
+      const training = await prisma.training.findUnique({
+        where: { id: id as string }
+      })
+
+      if (!training) {
+        return res.status(404).json({
+          success: false,
+          message: 'Training not found'
+        })
+      }
+
+      const results = await Promise.all(dates.map(async (dateStr) => {
+        const qrDate = new Date(dateStr)
+        const generatedAt = new Date()
+        const expiresAt = new Date(generatedAt.getTime() + 7 * 24 * 60 * 60 * 1000)
+        
+        // Find existing or create new
+        let qrCode = await prisma.qrCode.findFirst({
+          where: {
+            trainingId: id as string,
+            date: qrDate
+          }
+        })
+
+        let token: string = uuidv4()
+        if (qrCode) {
+          qrCode = await prisma.qrCode.update({
+            where: { id: qrCode.id },
+            data: { token, expiresAt }
+          })
+        } else {
+          qrCode = await prisma.qrCode.create({
+            data: {
+              trainingId: id as string,
+              token: token,
+              date: qrDate,
+              expiresAt: expiresAt
+            }
+          })
+        }
+
+        const qrData = JSON.stringify({
+          trainingId: id,
+          token: token,
+          date: qrCode.date.toISOString().split('T')[0],
+          timestamp: generatedAt.toISOString()
+        })
+
+        const qrCodeDataURL = await QRCode.toDataURL(qrData, {
+          errorCorrectionLevel: 'H',
+          width: 400,
+          margin: 2
+        })
+
+        const fileName = `qr_${id}_${qrCode.date.toISOString().split('T')[0]}_${token.slice(0, 8)}.png`
+        const qrDirPath = path.join(__dirname, '../../../../frontend/public/qr-generate')
+        
+        if (!fs.existsSync(qrDirPath)) {
+          fs.mkdirSync(qrDirPath, { recursive: true })
+        }
+
+        const filePath = path.join(qrDirPath, fileName)
+        const base64Data = qrCodeDataURL.replace(/^data:image\/png;base64,/, '')
+        fs.writeFileSync(filePath, base64Data, 'base64')
+        
+        return {
+          date: dateStr,
+          token: token,
+          qrCodeDataURL,
+          qrFilePath: `/qr-generate/${fileName}`,
+          expiresAt
+        }
+      }))
+
+      return res.status(200).json({
+        success: true,
+        data: results,
+        message: 'All QR codes generated successfully'
+      })
+    } catch (error: any) {
+      console.error('Error bulk generating QR codes:', error)
+      return res.status(500).json({
+        success: false,
+        message: 'Error bulk generating QR codes',
         error: error.message
       })
     }
