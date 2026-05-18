@@ -8,11 +8,27 @@ export class ApprovalUserRepository {
   }
 
   async create(data: CreateApprovalUserInput) {
-    const { approvers, ...approvalData } = data;
+    const { approvers, departmentIds, departmentId, ...approvalData } = data;
+    const resolvedDepartmentIds =
+      Array.isArray(departmentIds) && departmentIds.length > 0
+        ? departmentIds
+        : departmentId
+          ? [departmentId]
+          : [];
     
     return await this.prisma.approvalUser.create({
       data: {
         ...approvalData,
+        ...(resolvedDepartmentIds[0] ? { departmentId: resolvedDepartmentIds[0] } : {}),
+        ...(resolvedDepartmentIds.length > 0
+          ? {
+              approvalUserDepartments: {
+                create: resolvedDepartmentIds.map((id) => ({
+                  departmentId: id,
+                })),
+              },
+            }
+          : {}),
         approvers: {
           create: approvers.map((approver) => ({
             level: approver.level,
@@ -21,7 +37,13 @@ export class ApprovalUserRepository {
         },
       },
       include: {
-        trainingCategory: true,
+        department: true,
+        approvalUserDepartments: {
+          include: {
+            department: true,
+          },
+          orderBy: [{ departmentId: 'asc' }],
+        },
         approvers: {
           include: {
             user: {
@@ -39,7 +61,13 @@ export class ApprovalUserRepository {
   async findAll() {
     return await this.prisma.approvalUser.findMany({
       include: {
-        trainingCategory: true,
+        department: true,
+        approvalUserDepartments: {
+          include: {
+            department: true,
+          },
+          orderBy: [{ departmentId: 'asc' }],
+        },
         approvers: {
           include: {
             user: {
@@ -66,7 +94,13 @@ export class ApprovalUserRepository {
     return await this.prisma.approvalUser.findUnique({
       where: { id },
       include: {
-        trainingCategory: true,
+        department: true,
+        approvalUserDepartments: {
+          include: {
+            department: true,
+          },
+          orderBy: [{ departmentId: 'asc' }],
+        },
         approvers: {
           include: {
             user: {
@@ -82,13 +116,37 @@ export class ApprovalUserRepository {
   }
 
   async update(id: string, data: UpdateApprovalUserInput) {
-    const { approvers, ...updateData } = data;
+    const { approvers, departmentIds, departmentId, ...updateData } = data;
+    const resolvedDepartmentIds =
+      Array.isArray(departmentIds) && departmentIds.length > 0
+        ? departmentIds
+        : departmentId
+          ? [departmentId]
+          : undefined;
 
     return await this.prisma.$transaction(async (tx) => {
       const updated = await tx.approvalUser.update({
         where: { id },
-        data: updateData,
+        data: {
+          ...updateData,
+          ...(resolvedDepartmentIds ? { departmentId: resolvedDepartmentIds[0] } : {}),
+        },
       });
+
+      if (resolvedDepartmentIds) {
+        await tx.approvalUserDepartment.deleteMany({
+          where: { approvalUserId: id },
+        });
+
+        if (resolvedDepartmentIds.length > 0) {
+          await tx.approvalUserDepartment.createMany({
+            data: resolvedDepartmentIds.map((dId) => ({
+              approvalUserId: id,
+              departmentId: dId,
+            })),
+          });
+        }
+      }
 
       if (approvers) {
         await tx.approvalUserApprover.deleteMany({
@@ -109,7 +167,13 @@ export class ApprovalUserRepository {
       return tx.approvalUser.findUnique({
         where: { id: updated.id },
         include: {
-          trainingCategory: true,
+          department: true,
+          approvalUserDepartments: {
+            include: {
+              department: true,
+            },
+            orderBy: [{ departmentId: 'asc' }],
+          },
           approvers: {
             include: {
               user: {

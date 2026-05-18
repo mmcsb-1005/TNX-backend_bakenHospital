@@ -1,142 +1,108 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider  = "postgresql"
+  provider = "postgresql"
 }
 
 model User {
-  id             String       @id @default(cuid())
-  name           String?
-  email          String?
-  image          String?
-  position       String?
-  designationId  String?
-  designation    Designation? @relation(fields: [designationId], references: [id])
-  gradeId        String?
-  grade          Grade?       @relation(fields: [gradeId], references: [id], onDelete: SetNull)
-  contactNumber  String?
-  employmentDate DateTime?
-  role           UserRole     @default(USER)
-  userOrgId      String?      @unique
-  password       String?
-
-  // Relations for staff profilenpm run buid
-  staffProfile    StaffProfile?
-  reportingStaffs StaffProfile[] @relation("ReportingManager")
-
-  // Relations for request training
-  requestedTrainings RequestTraining[] @relation("RequestParticipant")
+  id                  String                 @id @default(cuid())
+  name                String?
+  email               String?
+  image               String?
+  role                UserRole               @default(USER)
+  userOrgId           String?                @unique
+  password            String?
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  position            String?
+  contactNumber       String?
+  departmentId        String?
+  designationId       String?
+  employmentDate      DateTime?
+  gradeId             String?
   approvalAssignments ApprovalUserApprover[]
-  
-  // User attendance for trainings
-  userAttendances    UserAttendance[]
-  trainingBookmarks  TrainingBookmark[]
-  paymentClaims      PaymentClaim[]
-  
-  // Form submissions
-  formSubmissions FormSubmission[]
-  
-  // Notifications
-  notifications Notification[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-enum UserRole {
-  ADMIN
-  USER
+  formSubmissions     FormSubmission[]
+  notifications       Notification[]
+  paymentClaims       PaymentClaim[]
+  reportingStaffs     StaffProfile[]         @relation("ReportingManager")
+  staffProfile        StaffProfile?
+  trainingBookmarks   TrainingBookmark[]
+  department          Department?            @relation(fields: [departmentId], references: [id])
+  designation         Designation?           @relation(fields: [designationId], references: [id])
+  grade               Grade?                 @relation(fields: [gradeId], references: [id])
+  userAttendances     UserAttendance[]
+  requestedTrainings  RequestTraining[]      @relation("RequestParticipant")
+  submittedRequests   RequestTraining[]      @relation("RequestTrainingSubmittedBy")
 }
 
 model StaffProfile {
-  id     String @id @default(cuid())
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // Professional Information
-  employeeId String?  @unique
-  department String?
-  team       String?
-  skills     String[] // Array of skills
-  bio        String?  @db.Text
-
-  // Reporting Structure
-  reportingManagerId String?
-  reportingManager   User?   @relation("ReportingManager", fields: [reportingManagerId], references: [id])
-
-  // Emergency Contact
+  id                       String   @id @default(cuid())
+  userId                   String   @unique
+  employeeId               String?  @unique
+  department               String?
+  team                     String?
+  skills                   String[]
+  bio                      String?
+  reportingManagerId       String?
   emergencyContactName     String?
   emergencyContactNumber   String?
   emergencyContactRelation String?
-
-  // Additional Information
-  address         String? @db.Text
-  alternateEmail  String?
-  linkedinProfile String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  address                  String?
+  alternateEmail           String?
+  linkedinProfile          String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  reportingManager         User?    @relation("ReportingManager", fields: [reportingManagerId], references: [id])
+  user                     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Training {
-  id                String         @id @default(cuid())
+  id                String             @id @default(cuid())
   title             String
-  description       String?        @db.Text
   organizer         String
   trainingType      TrainingType
   dateTimeStart     DateTime
   dateTimeEnd       DateTime
-  duration          String? // Auto calculated field
+  duration          String?
   venue             String
   bond              BondType
   typeOfPayment     PaymentType
   budgeted          Boolean
   sponsored         String?
-  accommodationCost Decimal?       @db.Decimal(10, 2)
-  travelCost        Decimal?       @db.Decimal(10, 2)
-  mealCost          Decimal?       @db.Decimal(10, 2)
+  accommodationCost Decimal?           @db.Decimal(10, 2)
+  travelCost        Decimal?           @db.Decimal(10, 2)
+  mealCost          Decimal?           @db.Decimal(10, 2)
   trainingMethod    TrainingMethod
-  comment           String?        @db.Text
-  objectives        String?        @db.Text
-  courseCurriculum  String?        @db.Text
-  faqs              String?        @db.Text
+  comment           String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  courseCurriculum  String?
+  description       String?
+  faqs              String?
   imagePath         String?
-  source            TrainingSource @default(ADMIN)
-
-  // QR Code Attendance
-  qrCodeToken       String?   @unique // Unique token for QR code
-  qrCodeGeneratedAt DateTime? // When QR code was generated
-  qrCodeExpiresAt   DateTime? // When QR code expires
-
-  // Relations
-  categoryId       String?
-  category         TrainingCategory? @relation(fields: [categoryId], references: [id])
-  requestTrainings RequestTraining[]
-  attendances      UserAttendance[]
-  bookmarks        TrainingBookmark[]
-  paymentClaims    PaymentClaim[]
-  qrCodes          QrCode[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  objectives        String?
+  qrCodeExpiresAt   DateTime?
+  qrCodeGeneratedAt DateTime?
+  qrCodeToken       String?            @unique
+  source            TrainingSource     @default(ADMIN)
+  trainingCost      Decimal?           @db.Decimal(10, 2)
+  paymentClaims     PaymentClaim[]
+  qrCodes           QrCode[]
+  requestTrainings  RequestTraining[]
+  bookmarks         TrainingBookmark[]
+  attendances       UserAttendance[]
 }
 
 model QrCode {
   id         String   @id @default(cuid())
   trainingId String
-  training   Training @relation(fields: [trainingId], references: [id], onDelete: Cascade)
   token      String   @unique
-  date       DateTime // Specific date this QR code is for
+  date       DateTime
   expiresAt  DateTime
   createdAt  DateTime @default(now())
+  training   Training @relation(fields: [trainingId], references: [id], onDelete: Cascade)
 
   @@unique([trainingId, date])
   @@index([trainingId, expiresAt])
@@ -146,12 +112,264 @@ model TrainingBookmark {
   id         String   @id @default(cuid())
   userId     String
   trainingId String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  training   Training @relation(fields: [trainingId], references: [id], onDelete: Cascade)
   createdAt  DateTime @default(now())
+  training   Training @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, trainingId])
   @@index([trainingId])
+}
+
+model Setting {
+  id                         String   @id @default(cuid())
+  logoPath                   String?
+  primaryColor               String?  @default("#3b82f6")
+  secondaryColor             String?  @default("#8b5cf6")
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+  address                    String?
+  companyName                String?
+  email                      String?
+  newUserNotificationMessage String?  @default("A new user {userName} has registered with email {userEmail}")
+  newUserNotificationTitle   String?  @default("New User Registration")
+  phoneNumber                String?
+  requiredTrainingHours      Int?     @default(40)
+  trainingReminderDays       Int?     @default(7)
+}
+
+model Mail {
+  id                String       @id @default(cuid())
+  name              String?      @unique
+  subject           String?
+  body              String?
+  mailType          MailType?    @unique
+  sendTrigger       SendTrigger?
+  daysOffset        Int?
+  templateVariables Json?
+  isActive          Boolean      @default(true)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  userType  String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      NotificationType @default(INFO)
+  isRead    Boolean          @default(false)
+  link      String?
+  metadata  Json?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+}
+
+model SystemLicense {
+  id           String   @id @default(cuid())
+  licenseKey   String   @unique
+  issuedTo     String?
+  issuedAt     DateTime @default(now())
+  expiresAt    DateTime
+  isActive     Boolean  @default(true)
+  maxUserCount Int?     @default(10)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Grade {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  users       User[]
+}
+
+model Department {
+  id               String            @id @default(cuid())
+  name             String            @unique
+  description      String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  approvalUsers    ApprovalUser[]
+  approvalUserDepartments ApprovalUserDepartment[]
+  requestTrainings RequestTraining[]
+  users            User[]
+}
+
+model Designation {
+  id          String        @id @default(cuid())
+  name        String        @unique
+  description String?
+  parentId    String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  parent      Designation?  @relation("DesignationHierarchy", fields: [parentId], references: [id])
+  children    Designation[] @relation("DesignationHierarchy")
+  users       User[]
+}
+
+model RequestTraining {
+  id                   String         @id @default(cuid())
+  requestName          String
+  requestJustification String?
+  trainingId           String?
+  proposedTrainingData Json?
+  approvalUserId       String?
+  currentApprovalLevel Int?
+  approvalTrail        Json?
+  status               ApprovalStatus @default(PENDING)
+  approvedAt           DateTime?
+  rejectedAt           DateTime?
+  approvalNotes        String?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  departmentId         String?
+  submittedById        String?
+  approvalUser         ApprovalUser?  @relation(fields: [approvalUserId], references: [id])
+  department           Department?    @relation(fields: [departmentId], references: [id])
+  training             Training?      @relation(fields: [trainingId], references: [id])
+  participants         User[]         @relation("RequestParticipant")
+  submittedBy          User?          @relation("RequestTrainingSubmittedBy", fields: [submittedById], references: [id])
+}
+
+model ApprovalUser {
+  id                 String                 @id @default(cuid())
+  title              String
+  description        String?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  departmentId       String?
+  department         Department?            @relation(fields: [departmentId], references: [id])
+  approvalUserDepartments ApprovalUserDepartment[]
+  approvers          ApprovalUserApprover[]
+  requestTrainings   RequestTraining[]
+}
+
+model ApprovalUserDepartment {
+  id             String       @id @default(cuid())
+  approvalUserId String
+  departmentId   String
+  approvalUser   ApprovalUser @relation(fields: [approvalUserId], references: [id], onDelete: Cascade)
+  department     Department   @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@unique([approvalUserId, departmentId])
+  @@index([departmentId])
+}
+
+model ApprovalUserApprover {
+  id             String       @id @default(cuid())
+  approvalUserId String
+  userId         String
+  level          Int
+  approvalUser   ApprovalUser @relation(fields: [approvalUserId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([approvalUserId, userId])
+  @@index([approvalUserId, level])
+  @@index([userId, level])
+}
+
+model UserAttendance {
+  id             String    @id @default(cuid())
+  trainingId     String
+  userId         String
+  attendanceDate DateTime
+  isPresent      Boolean   @default(false)
+  comment        String?
+  scannedAt      DateTime?
+  scannedVia     String?   @default("QR_CODE")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  training       Training  @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([trainingId, userId, attendanceDate])
+}
+
+model PaymentClaim {
+  id                  String             @id @default(cuid())
+  trainingId          String
+  userId              String
+  amountClaimed       Decimal            @db.Decimal(10, 2)
+  amountApproved      Decimal?           @db.Decimal(10, 2)
+  paymentStatus       PaymentClaimStatus @default(PENDING)
+  receiptPath         String?
+  receiptOriginalName String?
+  notes               String?
+  adminRemarks        String?
+  verifiedById        String?
+  submittedAt         DateTime           @default(now())
+  verifiedAt          DateTime?
+  paidAt              DateTime?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  training            Training           @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+  user                User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([trainingId, userId])
+  @@index([paymentStatus])
+  @@index([submittedAt])
+}
+
+model Form {
+  id          String           @id @default(cuid())
+  title       String
+  description String?
+  isActive    Boolean          @default(true)
+  formType    FormType         @default(CUSTOM)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  fields      FormField[]
+  submissions FormSubmission[]
+}
+
+model FormField {
+  id          String    @id @default(cuid())
+  formId      String
+  label       String
+  fieldType   FieldType
+  placeholder String?
+  required    Boolean   @default(false)
+  order       Int
+  options     Json?
+  validation  Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  form        Form      @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  @@index([formId])
+}
+
+model FormSubmission {
+  id        String   @id @default(cuid())
+  formId    String
+  userId    String?
+  responses Json
+  createdAt DateTime @default(now())
+  form      Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  user      User?    @relation(fields: [userId], references: [id])
+
+  @@index([formId])
+  @@index([userId])
+}
+
+enum UserRole {
+  ADMIN
+  USER
 }
 
 enum TrainingType {
@@ -183,68 +401,8 @@ enum TrainingMethod {
 }
 
 enum TrainingSource {
-  ADMIN        // Training created directly by admin
-  USER_REQUEST // Training proposed by a user (requires approval)
-}
-
-model Setting {
-  id                   String   @id @default(cuid())
-  logoPath             String?
-  companyName          String?
-  phoneNumber          String?
-  address              String?
-  email                String?
-  trainingReminderDays Int?     @default(7)
-  requiredTrainingHours Int?    @default(40) // Required training hours per year for each user
-  
-  // Notification Templates
-  newUserNotificationTitle String? @default("New User Registration")
-  newUserNotificationMessage String? @default("A new user {userName} has registered with email {userEmail}")
-  
-  primaryColor         String?  @default("#3b82f6")
-  secondaryColor       String?  @default("#8b5cf6")
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-}
-
-model Mail {
-  id                String       @id @default(cuid())
-  name              String?      @unique
-  subject           String?
-  body              String?
-  mailType          MailType?    @unique
-  sendTrigger       SendTrigger?
-  daysOffset        Int? // Number of days before/after assessment date to send the email
-  templateVariables Json?
-  isActive          Boolean      @default(true) // Allows deactivating a template without deleting
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
-}
-
-model PasswordResetToken {
-  id        String   @id @default(cuid())
-  token     String   @unique // The unique token string sent in the URL
-  userId    String // The ID of the User or Admin user
-  userType  String // 'user' or 'admin'
-  expiresAt DateTime // When the token becomes invalid (e.g., 1 hour from creation)
-  createdAt DateTime @default(now())
-}
-
-model Notification {
-  id          String             @id @default(cuid())
-  userId      String
-  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title       String
-  message     String             @db.Text
-  type        NotificationType   @default(INFO)
-  isRead      Boolean            @default(false)
-  link        String?            // Optional link to navigate to
-  metadata    Json?              // Additional data (e.g., userId of new user)
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  
-  @@index([userId, isRead])
-  @@index([createdAt])
+  ADMIN
+  USER_REQUEST
 }
 
 enum NotificationType {
@@ -265,7 +423,7 @@ enum MailType {
 }
 
 enum SendTrigger {
-  MANUAL // Email must be triggered manually by an admin (e.g., password reset, general announcement)
+  MANUAL
 }
 
 enum ApprovalStatus {
@@ -274,199 +432,10 @@ enum ApprovalStatus {
   REJECTED
 }
 
-model SystemLicense {
-  id           String   @id @default(cuid())
-  licenseKey   String   @unique
-  issuedTo     String?
-  issuedAt     DateTime @default(now())
-  expiresAt    DateTime
-  isActive     Boolean  @default(true)
-  maxUserCount Int?     @default(10)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-}
-
-model Grade {
-  id          String  @id @default(cuid())
-  name        String  @unique
-  description String?
-
-  users User[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-// New models for admin panel
-
-model Designation {
-  id          String  @id @default(cuid())
-  name        String  @unique
-  description String?
-
-  // Parent-Child relationship
-  parentId String?
-  parent   Designation?  @relation("DesignationHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children Designation[] @relation("DesignationHierarchy")
-
-  users User[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model TrainingCategory {
-  id          String  @id @default(cuid())
-  name        String  @unique
-  description String?
-
-  trainings Training[]
-  approvals ApprovalUser[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model RequestTraining {
-  id          String   @id @default(cuid())
-  requestName String
-  requestJustification String?
-  trainingId  String?
-  training    Training? @relation(fields: [trainingId], references: [id], onDelete: SetNull)
-  proposedTrainingData Json?
-
-  approvalUserId String?
-  approvalUser   ApprovalUser? @relation(fields: [approvalUserId], references: [id], onDelete: SetNull)
-  currentApprovalLevel Int?
-  approvalTrail Json?
-
-  status        ApprovalStatus @default(PENDING)
-  approvedAt    DateTime?
-  rejectedAt    DateTime?
-  approvalNotes String?
-
-  participants User[] @relation("RequestParticipant")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model ApprovalUser {
-  id                 String           @id @default(cuid())
-  title              String
-  trainingCategoryId String
-  trainingCategory   TrainingCategory @relation(fields: [trainingCategoryId], references: [id])
-  description        String?
-
-  approvers       ApprovalUserApprover[]
-  requestTrainings RequestTraining[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model ApprovalUserApprover {
-  id             String       @id @default(cuid())
-  approvalUserId String
-  userId         String
-  level          Int
-
-  approvalUser ApprovalUser @relation(fields: [approvalUserId], references: [id], onDelete: Cascade)
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([approvalUserId, userId])
-  @@index([approvalUserId, level])
-  @@index([userId, level])
-}
-
-model UserAttendance {
-  id             String   @id @default(cuid())
-  trainingId     String
-  training       Training @relation(fields: [trainingId], references: [id], onDelete: Cascade)
-  userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  attendanceDate DateTime
-  isPresent      Boolean  @default(false)
-  comment        String?
-
-  // QR Code Scan Info
-  scannedAt      DateTime? // When user scanned QR code
-  scannedVia     String?   @default("QR_CODE") // Method: QR_CODE, MANUAL, etc
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([trainingId, userId, attendanceDate])
-}
-
-model PaymentClaim {
-  id                String             @id @default(cuid())
-  trainingId        String
-  training          Training           @relation(fields: [trainingId], references: [id], onDelete: Cascade)
-  userId            String
-  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  amountClaimed     Decimal            @db.Decimal(10, 2)
-  amountApproved    Decimal?           @db.Decimal(10, 2)
-  paymentStatus     PaymentClaimStatus @default(PENDING)
-  receiptPath       String?
-  receiptOriginalName String?
-  notes             String?            @db.Text
-  adminRemarks      String?            @db.Text
-  verifiedById      String?
-  submittedAt       DateTime           @default(now())
-  verifiedAt        DateTime?
-  paidAt            DateTime?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-
-  @@unique([trainingId, userId])
-  @@index([paymentStatus])
-  @@index([submittedAt])
-}
-
-// Dynamic Form Builder Models
-
-model Form {
-  id          String   @id @default(cuid())
-  title       String
-  description String?  @db.Text
-  isActive    Boolean  @default(true)
-  formType    FormType @default(CUSTOM)
-
-  fields      FormField[]
-  submissions FormSubmission[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
 enum FormType {
   EVALUATION
   PRE_POST
   CUSTOM
-}
-
-model FormField {
-  id     String @id @default(cuid())
-  formId String
-  form   Form   @relation(fields: [formId], references: [id], onDelete: Cascade)
-
-  label       String
-  fieldType   FieldType
-  placeholder String?
-  required    Boolean   @default(false)
-  order       Int // For sorting/ordering fields
-
-  // For options (select, radio, checkbox)
-  options Json? // ["Option 1", "Option 2"]
-
-  // Validation rules
-  validation Json? // {min: 5, max: 100, pattern: "email"}
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([formId])
 }
 
 enum FieldType {
@@ -482,20 +451,4 @@ enum FieldType {
   RATING
   HEADER
   PARAGRAPH
-}
-
-model FormSubmission {
-  id     String @id @default(cuid())
-  formId String
-  form   Form   @relation(fields: [formId], references: [id], onDelete: Cascade)
-
-  userId String? // Optional: if tracking who submitted
-  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
-  
-  responses Json // {field_id: "value"}
-
-  createdAt DateTime @default(now())
-
-  @@index([formId])
-  @@index([userId])
 }

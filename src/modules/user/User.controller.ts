@@ -26,6 +26,7 @@ interface UserController {
   changePassword(req: Request, res: Response): Promise<void>;
   getMyTrainingHistory(req: Request, res: Response): Promise<void>;
   getMyAttendance(req: Request, res: Response): Promise<void>;
+  getMyDashboardStats(req: Request, res: Response): Promise<void>;
   getDesignations(req: Request, res: Response): Promise<void>;
 }
 
@@ -490,6 +491,120 @@ class UserControllerImpl implements UserController {
       res.status(500).json({ 
         error: error instanceof Error ? error.message : 'Failed to get attendance records' 
       });
+    }
+  }
+
+  async getMyDashboardStats(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.id as string | undefined
+
+      if (!userId) {
+        res.status(401).json({ error: 'User not authenticated' })
+        return
+      }
+
+      const now = new Date()
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0)
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+
+      const [totalRequests, pendingRequests, upcomingTrainings, completedTrainings, thisMonthTrainings, recentRequests] =
+        await Promise.all([
+          prisma.requestTraining.count({ where: { submittedById: userId } }),
+          prisma.requestTraining.count({ where: { submittedById: userId, status: 'PENDING' } }),
+          prisma.requestTraining.count({
+            where: {
+              participants: { some: { id: userId } },
+              status: 'APPROVED',
+              trainingId: { not: null },
+              training: { is: { dateTimeStart: { gt: now } } },
+            },
+          }),
+          prisma.requestTraining.count({
+            where: {
+              participants: { some: { id: userId } },
+              status: 'APPROVED',
+              trainingId: { not: null },
+              training: { is: { dateTimeEnd: { lt: now } } },
+            },
+          }),
+          prisma.requestTraining.count({
+            where: {
+              participants: { some: { id: userId } },
+              status: 'APPROVED',
+              trainingId: { not: null },
+              training: { is: { dateTimeStart: { gte: startOfMonth, lte: endOfMonth } } },
+            },
+          }),
+          prisma.requestTraining.findMany({
+            where: { submittedById: userId },
+            orderBy: { createdAt: 'desc' },
+            take: 4,
+            include: {
+              training: {
+                select: {
+                  id: true,
+                  title: true,
+                  trainingType: true,
+                  dateTimeStart: true,
+                  dateTimeEnd: true,
+                },
+              },
+            },
+          }),
+        ])
+
+      const completedForHours = await prisma.requestTraining.findMany({
+        where: {
+          participants: { some: { id: userId } },
+          status: 'APPROVED',
+          trainingId: { not: null },
+          training: { is: { dateTimeEnd: { lt: now } } },
+        },
+        select: {
+          training: {
+            select: {
+              dateTimeStart: true,
+              dateTimeEnd: true,
+            },
+          },
+        },
+      })
+
+      const trainingHours = Math.round(
+        completedForHours.reduce((sum, item) => {
+          const start = item.training?.dateTimeStart ? new Date(item.training.dateTimeStart).getTime() : null
+          const end = item.training?.dateTimeEnd ? new Date(item.training.dateTimeEnd).getTime() : null
+          if (!start || !end || end <= start) return sum
+          return sum + (end - start) / (1000 * 60 * 60)
+        }, 0),
+      )
+
+      res.json({
+        success: true,
+        data: {
+          totalRequests,
+          pendingRequests,
+          upcomingTrainings,
+          completedTrainings,
+          trainingHours,
+          thisMonthTrainings,
+          recentRequests: recentRequests.map((r) => ({
+            id: r.id,
+            status: r.status,
+            createdAt: r.createdAt,
+            title: (r.proposedTrainingData as any)?.title || r.training?.title || r.requestName,
+            trainingType: (r.proposedTrainingData as any)?.trainingType || r.training?.trainingType || null,
+            dateTimeStart: (r.proposedTrainingData as any)?.dateTimeStart || r.training?.dateTimeStart || null,
+            dateTimeEnd: (r.proposedTrainingData as any)?.dateTimeEnd || r.training?.dateTimeEnd || null,
+          })),
+        },
+        message: 'Dashboard stats retrieved successfully',
+      })
+    } catch (error) {
+      console.error('Get dashboard stats error:', error)
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Failed to get dashboard stats',
+      })
     }
   }
 

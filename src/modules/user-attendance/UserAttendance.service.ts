@@ -106,9 +106,6 @@ export class UserAttendanceService {
     // Validate training exists
     const training = await this.prisma.training.findUnique({
       where: { id: trainingId },
-      include: {
-        category: true,
-      },
     });
     if (!training) {
       throw new Error('Training not found');
@@ -134,7 +131,6 @@ export class UserAttendanceService {
   async getTrainingsWithAttendanceOverview() {
     const trainings = await this.prisma.training.findMany({
       include: {
-        category: true,
         requestTrainings: {
           include: {
             participants: true,
@@ -172,7 +168,6 @@ export class UserAttendanceService {
         organizer: training.organizer,
         dateTimeStart: training.dateTimeStart,
         dateTimeEnd: training.dateTimeEnd,
-        category: training.category,
         totalParticipants,
         datesCount,
         attendanceCompletionPercentage,

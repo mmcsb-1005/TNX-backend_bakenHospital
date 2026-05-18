@@ -24,6 +24,8 @@ class UserRepositoryImpl implements UserRepository {
         email: true,
         image: true,
         position: true,
+        departmentId: true,
+        department: true,
         designationId: true,
         designation: true,
         gradeId: true,
@@ -32,6 +34,12 @@ class UserRepositoryImpl implements UserRepository {
         employmentDate: true,
         role: true,
         userOrgId: true,
+        staffProfile: {
+          select: {
+            department: true,
+            employeeId: true,
+          },
+        },
         createdAt: true,
         updatedAt: true,
       }
@@ -42,6 +50,7 @@ class UserRepositoryImpl implements UserRepository {
     return await Model.findUnique({ 
       where: { id },
       include: {
+        department: true,
         designation: true,
         grade: true,
       }
@@ -64,6 +73,7 @@ class UserRepositoryImpl implements UserRepository {
       name: data.name,
       image: data.image,
       position: data.position,
+      departmentId: (data as any).departmentId,
       designationId: data.designationId,
       gradeId: (data as any).gradeId,
       contactNumber: data.contactNumber,
@@ -74,6 +84,10 @@ class UserRepositoryImpl implements UserRepository {
     };
 
     // Normalize optional scalar fields from form payloads.
+    if ((payload as any).departmentId === '') {
+      (payload as any).departmentId = null;
+    }
+
     if (payload.designationId === '') {
       payload.designationId = null;
     }

@@ -10,6 +10,7 @@ interface UserImportRow {
   designation?: string
   grade?: string
   contactNumber?: string
+  departmentName?: string
   employmentDate?: string
   role?: string
   userOrgId?: string
@@ -56,6 +57,7 @@ export class UserImportService {
         designation: pickString(raw, ['designation', 'Designation', 'position', 'Position']),
         grade: pickString(raw, ['grade', 'Grade', 'gradeTitle', 'Grade Title', 'gradeName', 'Grade Name']),
         contactNumber: pickString(raw, ['contactNumber', 'Contact Number', 'contact', 'Contact']),
+        departmentName: pickString(raw, ['departmentName', 'department', 'Department', 'Department Name', 'departmentName', 'department name']),
         employmentDate: pickString(raw, ['employmentDate', 'Employment Date']),
         role: pickString(raw, ['role', 'Role']),
         userOrgId: pickString(raw, ['userOrgId', 'User Org ID', 'Staff ID', 'staffId', 'StaffId']),
@@ -94,8 +96,8 @@ export class UserImportService {
         let designationId: string | null = null
         const designationName = row.designation?.trim()
         if (designationName) {
-          const designation = await prisma.designation.findUnique({
-            where: { name: designationName }
+          const designation = await prisma.designation.findFirst({
+            where: { name: { equals: designationName, mode: 'insensitive' } }
           })
           
           if (!designation) {
@@ -114,6 +116,23 @@ export class UserImportService {
             update: {},
           })
           gradeId = grade.id
+        }
+
+        // Find department by name if provided
+        let departmentId: string | null = null
+        const departmentName = row.departmentName?.trim()
+        if (departmentName) {
+          const existingDepartment = await prisma.department.findFirst({
+            where: { name: { equals: departmentName, mode: 'insensitive' } }
+          })
+
+          const department =
+            existingDepartment ??
+            (await prisma.department.create({
+              data: { name: departmentName }
+            }))
+
+          departmentId = department.id
         }
 
         // Parse employment date if provided
@@ -136,6 +155,7 @@ export class UserImportService {
             position: designationName || null,
             designationId: designationId,
             gradeId,
+            departmentId: departmentId,
             contactNumber: row.contactNumber?.trim() || null,
             employmentDate: employmentDate || null,
             role: role as UserRole,
@@ -170,6 +190,7 @@ export class UserImportService {
       'designation',
       'grade',
       'contactNumber',
+      'departmentName',
       'employmentDate',
       'role',
       'userOrgId',
@@ -189,6 +210,7 @@ export class UserImportService {
         grade: 'G6',
         contactNumber: '0123456789',
         employmentDate: '2026-01-15',
+        departmentName: 'IT',
         role: 'USER',
         userOrgId: 'EMP001',
         password: 'password123'
@@ -200,6 +222,7 @@ export class UserImportService {
         grade: 'G7',
         contactNumber: '0129876543',
         employmentDate: '2025-12-01',
+        departmentName: 'HR',
         role: 'USER',
         userOrgId: 'EMP002',
         password: 'password123'

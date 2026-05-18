@@ -7,6 +7,7 @@ const User_EXPORT_HEADERS = [
     'Email',
     'Position',
     'Contact Number',
+    'Department',
     'Employment Date',
     'Employee ID',
 ];
@@ -26,6 +27,7 @@ export const UserExportService = {
             User.email,
             User.position,
             User.contactNumber,
+            User.departmentName,
             User.employmentDate ? new Date(User.employmentDate).toISOString().split('T')[0] : '',
             User.userOrgId,
         ]);

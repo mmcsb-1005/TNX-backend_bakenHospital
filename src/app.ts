@@ -1,7 +1,5 @@
 import express from 'express';
 import cors from 'cors';
-import { sync as globSync } from 'glob';
-import fs from 'fs';
 import path from 'path';
 
 import swaggerUi from 'swagger-ui-express';
@@ -28,14 +26,15 @@ import formRoutes from './modules/form/form.routes'
 import designationRoutes from './modules/designation/Designation.route'
 // Routes untuk grade - pengurusan grade jawatan
 import gradeRoutes from './modules/grade/Grade.route'
-// Routes untuk kategori latihan - pengkelasan jenis latihan
-import trainingCategoryRoutes from './modules/training-category/TrainingCategory.route'
+// Routes untuk department - pengurusan department untuk designation
+import departmentRoutes from './modules/department/Department.route'
 // Routes untuk permintaan latihan - pengguna memohon latihan
 import requestTrainingRoutes from './modules/request-training/RequestTraining.route'
 // Routes untuk kelulusan - proses approve/reject permintaan
 import approvalUserRoutes from './modules/approval-user/ApprovalUser.route'
 // Routes untuk kehadiran pengguna - tracking attendance latihan
 import userAttendanceRoutes from './modules/user-attendance/UserAttendance.route'
+import dashboardRoutes from './modules/dashboard/Dashboard.route'
 // Routes untuk pembayaran - tuntutan bayaran latihan
 import paymentRoutes from './modules/payment/Payment.route'
 // Routes untuk notifikasi - sistem pemberitahuan
@@ -82,34 +81,12 @@ const options = {
     apis: ['./src/modules/**/*.ts'],
 };
 
-// debug: expand globs and show files that will be scanned
-const patterns = (options.apis as string[]).filter((p: string) => !p.startsWith('!'));
-const matchedFiles: string[] = patterns.flatMap((p: string) => {
-  try {
-    return globSync(p, { nodir: true });
-  } catch (e) {
-    console.warn('glob sync failed for pattern', p, e);
-    return [];
-  }
-});
-//console.log('swagger-jsdoc will scan files:', matchedFiles);
-
 let swaggerSpec;
 try {
     swaggerSpec = swaggerJSDoc(options);
     app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 } catch (err) {
     console.error('swagger-jsdoc build error:', err);
-    // Scan matched files for suspicious swagger/jsdoc/yaml markers
-    for (const f of matchedFiles) {
-        const txt = fs.readFileSync(f, 'utf8');
-        if (/@swagger|@openapi|definitions:|components:|swagger:/.test(txt)) {
-            console.log('file contains swagger-like content:', f);
-        }
-        if (/^\s*(definitions|components)\s*:\s*$(\r?\n\s*$)/m.test(txt)) {
-            console.log('file possibly has an empty "definitions" or "components" block:', f);
-        }
-    }
     throw err;
 }
 
@@ -134,11 +111,12 @@ app.use('/api/notifications', requireAuth, notificationRoutes);
 // Admin API routes
 app.use('/api/admin/designation', requireAuth, designationRoutes);
 app.use('/api/admin/grade', requireAuth, gradeRoutes);
-app.use('/api/admin/training-category', requireAuth, trainingCategoryRoutes);
+app.use('/api/admin/department', requireAuth, departmentRoutes);
 app.use('/api/admin/request-training', requireAuth, requestTrainingRoutes);
 app.use('/api/admin/approval-user', requireAuth, approvalUserRoutes);
 app.use('/api/admin/user-attendance', requireAuth, userAttendanceRoutes);
 app.use('/api/admin/payment', requireAuth, paymentRoutes.adminRouter);
+app.use('/api/admin/dashboard', requireAuth, dashboardRoutes);
 
 // Form routes (admin and public)
 app.use('/api', formRoutes);

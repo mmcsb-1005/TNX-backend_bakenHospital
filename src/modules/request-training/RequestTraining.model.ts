@@ -20,6 +20,7 @@ export interface RequestTrainingModel {
   approvedAt?: Date | null;
   rejectedAt?: Date | null;
   approvalNotes?: string | null;
+  submittedById?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -34,6 +35,7 @@ export interface CreateRequestTrainingInput {
   approvalTrail?: ApprovalTrailItem[] | null;
   participantIds: string[];
   approvalUserId?: string;
+  submittedById?: string;
 }
 
 export interface UpdateRequestTrainingInput {
@@ -83,11 +85,15 @@ export interface ProposedTrainingData {
   budgeted: boolean;
   trainingMethod: TrainingMethodValue;
   sponsored?: string;
+  trainingCost?: number;
   accommodationCost?: number;
   travelCost?: number;
   mealCost?: number;
   comment?: string;
-  categoryId?: string;
+  objectives?: string;
+  courseCurriculum?: string;
+  faqs?: string;
+  imagePath?: string;
 }
 
 // User self-submission labels for propose-training flow
@@ -95,5 +101,6 @@ export interface SubmitTrainingRequestInput {
   requestName: string;
   userId: string; // The user submitting the request
   trainingData: ProposedTrainingData;
+  participantIds?: string[];
   approvalUserId?: string;
 }

@@ -20,6 +20,7 @@ router.put('/profile/me', authMiddleware, UserController.updateMyProfile); // #s
 router.post('/profile/change-password', authMiddleware, UserController.changePassword); // #swagger.tags = ['User Profile']
 router.get('/profile/training-history', authMiddleware, UserController.getMyTrainingHistory); // #swagger.tags = ['User Profile']
 router.get('/attendance/me', authMiddleware, UserController.getMyAttendance); // #swagger.tags = ['User Profile']
+router.get('/dashboard/stats', authMiddleware, UserController.getMyDashboardStats); // #swagger.tags = ['User Profile']
 router.get('/designations', UserController.getDesignations); // #swagger.tags = ['User Profile']
 
 // 2. Variable Parameter Routes (e.g., GET/PUT/DELETE by ID)

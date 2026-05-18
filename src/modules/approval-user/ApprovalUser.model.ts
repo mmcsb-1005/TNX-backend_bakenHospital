@@ -1,7 +1,8 @@
 export interface ApprovalUserModel {
   id: string;
   title: string;
-  trainingCategoryId: string;
+  departmentId: string;
+  departmentIds?: string[];
   description?: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -9,7 +10,8 @@ export interface ApprovalUserModel {
 
 export interface CreateApprovalUserInput {
   title: string;
-  trainingCategoryId: string;
+  departmentId?: string;
+  departmentIds?: string[];
   description?: string;
   approvers: Array<{
     userId: string;
@@ -19,7 +21,8 @@ export interface CreateApprovalUserInput {
 
 export interface UpdateApprovalUserInput {
   title?: string;
-  trainingCategoryId?: string;
+  departmentId?: string;
+  departmentIds?: string[];
   description?: string;
   approvers?: Array<{
     userId: string;

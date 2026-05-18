@@ -10,7 +10,14 @@ export class RequestTrainingController {
 
   createRequestTraining = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const requestTraining = await this.requestTrainingService.createRequestTraining(req.body);
+      const actorUserId = (req as any).user?.id;
+      if (!actorUserId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+      }
+      const requestTraining = await this.requestTrainingService.createRequestTraining(req.body, actorUserId);
       res.status(201).json({
         success: true,
         data: requestTraining,
@@ -51,7 +58,14 @@ export class RequestTrainingController {
   updateRequestTraining = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
-      const requestTraining = await this.requestTrainingService.updateRequestTraining(id as string, req.body);
+      const actorUserId = (req as any).user?.id;
+      if (!actorUserId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+      }
+      const requestTraining = await this.requestTrainingService.updateRequestTraining(id as string, req.body, actorUserId);
       res.status(200).json({
         success: true,
         data: requestTraining,
@@ -113,6 +127,72 @@ export class RequestTrainingController {
         });
       }
       const requestTraining = await this.requestTrainingService.rejectRequest({
+        requestId: id as string,
+        notes,
+        actorUserId,
+      });
+      res.status(200).json({
+        success: true,
+        data: requestTraining,
+        message: 'Request rejected successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  adminApproveRequest = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const { notes } = req.body;
+      const actorUserId = (req as any).user?.id;
+      const role = (req as any).user?.role;
+      if (!actorUserId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+      }
+      if (role !== 'ADMIN') {
+        return res.status(403).json({
+          success: false,
+          message: 'Forbidden',
+        });
+      }
+      const requestTraining = await this.requestTrainingService.adminApproveRequest({
+        requestId: id as string,
+        notes,
+        actorUserId,
+      });
+      res.status(200).json({
+        success: true,
+        data: requestTraining,
+        message: 'Request approved successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  adminRejectRequest = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const { notes } = req.body;
+      const actorUserId = (req as any).user?.id;
+      const role = (req as any).user?.role;
+      if (!actorUserId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+      }
+      if (role !== 'ADMIN') {
+        return res.status(403).json({
+          success: false,
+          message: 'Forbidden',
+        });
+      }
+      const requestTraining = await this.requestTrainingService.adminRejectRequest({
         requestId: id as string,
         notes,
         actorUserId,
@@ -236,11 +316,15 @@ export class RequestTrainingController {
   sendNotification = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
-      await this.requestTrainingService.sendNotification(id as string);
+      const result = await this.requestTrainingService.sendNotification(id as string);
 
       res.status(200).json({
         success: true,
-        message: 'Email notification sent successfully',
+        message: result.message,
+        attempted: result.attempted,
+        sent: result.sent,
+        failed: result.failed,
+        skipped: result.skipped,
       });
     } catch (error) {
       next(error);

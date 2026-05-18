@@ -21,6 +21,8 @@ router.put('/:id', requestTrainingController.updateRequestTraining);
 router.delete('/:id', requestTrainingController.deleteRequestTraining);
 router.post('/:id/approve', requestTrainingController.approveRequest);
 router.post('/:id/reject', requestTrainingController.rejectRequest);
+router.post('/:id/admin-approve', requestTrainingController.adminApproveRequest);
+router.post('/:id/admin-reject', requestTrainingController.adminRejectRequest);
 router.post('/:id/send-notification', requestTrainingController.sendNotification);
 
 export default router;

@@ -31,6 +31,7 @@ const substituteVariables = (content: string, vars: Record<string, string>): str
 
 // --- 3. Main Service Implementation ---
 interface MailService {
+  isConfigured(): boolean;
   sendTemplateMail(
     mailType: MailType,
     to: string,
@@ -58,6 +59,9 @@ interface MailService {
 }
 
 class MailServiceImpl implements MailService {
+  isConfigured(): boolean {
+    return Boolean(process.env.MAIL_HOST && process.env.MAIL_USER && process.env.MAIL_PASS)
+  }
 
   async sendTemplateMail(
     mailType: MailType,

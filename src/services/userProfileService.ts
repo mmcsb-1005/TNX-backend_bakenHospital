@@ -89,11 +89,7 @@ export class UserProfileService {
         }
       },
       include: {
-        training: {
-          include: {
-            category: true
-          }
-        }
+        training: true
       },
       orderBy: {
         training: {

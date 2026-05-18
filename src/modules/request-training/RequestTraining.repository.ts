@@ -4,9 +4,11 @@ import { CreateRequestTrainingInput, UpdateRequestTrainingInput } from './Reques
 
 // Shared include labels so response shape stays consistent across repository methods.
 const requestTrainingInclude = {
-  training: {
+  training: true,
+  submittedBy: {
     include: {
-      category: true,
+      designation: true,
+      department: true,
     },
   },
   participants: {
@@ -16,7 +18,7 @@ const requestTrainingInclude = {
   },
   approvalUser: {
     include: {
-      trainingCategory: true,
+      department: true,
       approvers: {
         include: {
           user: {
@@ -37,7 +39,15 @@ export class RequestTrainingRepository {
   }
 
   async create(data: CreateRequestTrainingInput) {
-    const { participantIds, trainingId, proposedTrainingData, approvalTrail, approvalUserId, ...requestData } = data;
+    const {
+      participantIds,
+      trainingId,
+      proposedTrainingData,
+      approvalTrail,
+      approvalUserId,
+      submittedById,
+      ...requestData
+    } = data;
 
     const createPayload: Prisma.RequestTrainingCreateInput = {
       ...requestData,
@@ -63,6 +73,13 @@ export class RequestTrainingRepository {
         ? {
             training: {
               connect: { id: trainingId },
+            },
+          }
+        : {}),
+      ...(submittedById
+        ? {
+            submittedBy: {
+              connect: { id: submittedById },
             },
           }
         : {}),

@@ -10,13 +10,40 @@ export class ApprovalUserService {
     this.approvalUserRepository = new ApprovalUserRepository();
   }
 
+  private withDepartments<T extends Record<string, any>>(approvalUser: T) {
+    const rows = Array.isArray((approvalUser as any)?.approvalUserDepartments)
+      ? ((approvalUser as any).approvalUserDepartments as Array<{ department?: any }>)
+      : []
+    const departments = rows.map((r) => r.department).filter(Boolean)
+    const primaryDepartment = (approvalUser as any)?.department || departments[0] || null
+    const primaryDepartmentId = (approvalUser as any)?.departmentId || primaryDepartment?.id || null
+
+    return {
+      ...approvalUser,
+      department: primaryDepartment,
+      departmentId: primaryDepartmentId,
+      departments,
+    }
+  }
+
   async createApprovalUser(data: CreateApprovalUserInput) {
-    // Validate training category exists
-    const trainingCategory = await this.prisma.trainingCategory.findUnique({
-      where: { id: data.trainingCategoryId },
-    });
-    if (!trainingCategory) {
-      throw new Error('Training category not found');
+    const departmentIds =
+      Array.isArray(data.departmentIds) && data.departmentIds.length > 0
+        ? data.departmentIds
+        : data.departmentId
+          ? [data.departmentId]
+          : []
+
+    if (departmentIds.length === 0) {
+      throw new Error('Department is required')
+    }
+
+    const departments = await this.prisma.department.findMany({
+      where: { id: { in: departmentIds } },
+      select: { id: true },
+    })
+    if (departments.length !== departmentIds.length) {
+      throw new Error('Department not found')
     }
 
     const levels = data.approvers.map((a) => a.level)
@@ -33,11 +60,17 @@ export class ApprovalUserService {
       seen.add(approver.userId)
     }
 
-    return await this.approvalUserRepository.create(data);
+    const created = await this.approvalUserRepository.create({
+      ...data,
+      departmentIds,
+      departmentId: departmentIds[0],
+    });
+    return this.withDepartments(created as any)
   }
 
   async getApprovalUsers() {
-    return await this.approvalUserRepository.findAll();
+    const list = await this.approvalUserRepository.findAll();
+    return list.map((row) => this.withDepartments(row as any));
   }
 
   async getApprovalUserById(id: string) {
@@ -45,20 +78,27 @@ export class ApprovalUserService {
     if (!approvalUser) {
       throw new Error('Approval user not found');
     }
-    return approvalUser;
+    return this.withDepartments(approvalUser as any);
   }
 
   async updateApprovalUser(id: string, data: UpdateApprovalUserInput) {
     // Check if approval user exists
     await this.getApprovalUserById(id);
 
-    // Validate training category exists if updating
-    if (data.trainingCategoryId) {
-      const trainingCategory = await this.prisma.trainingCategory.findUnique({
-        where: { id: data.trainingCategoryId },
-      });
-      if (!trainingCategory) {
-        throw new Error('Training category not found');
+    const departmentIds =
+      Array.isArray(data.departmentIds) && data.departmentIds.length > 0
+        ? data.departmentIds
+        : data.departmentId
+          ? [data.departmentId]
+          : undefined
+
+    if (departmentIds) {
+      const departments = await this.prisma.department.findMany({
+        where: { id: { in: departmentIds } },
+        select: { id: true },
+      })
+      if (departments.length !== departmentIds.length) {
+        throw new Error('Department not found')
       }
     }
 
@@ -78,7 +118,11 @@ export class ApprovalUserService {
       }
     }
 
-    return await this.approvalUserRepository.update(id, data);
+    const updated = await this.approvalUserRepository.update(id, {
+      ...data,
+      ...(departmentIds ? { departmentIds, departmentId: departmentIds[0] } : {}),
+    });
+    return updated ? this.withDepartments(updated as any) : updated
   }
 
   async deleteApprovalUser(id: string) {

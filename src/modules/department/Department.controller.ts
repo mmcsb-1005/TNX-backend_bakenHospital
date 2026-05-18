@@ -1,82 +1,82 @@
 import { Request, Response, NextFunction } from 'express';
-import { GradeService } from './Grade.service';
-import { GradeImportService } from './GradeImport.service';
+import { DepartmentService } from './Department.service';
+import { DepartmentImportService } from './DepartmentImport.service';
 
-export class GradeController {
-  private gradeService: GradeService;
+export class DepartmentController {
+  private departmentService: DepartmentService;
 
   constructor() {
-    this.gradeService = new GradeService();
+    this.departmentService = new DepartmentService();
   }
 
-  createGrade = async (req: Request, res: Response, next: NextFunction) => {
+  createDepartment = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const grade = await this.gradeService.createGrade(req.body);
+      const department = await this.departmentService.createDepartment(req.body);
       res.status(201).json({
         success: true,
-        data: grade,
-        message: 'Grade created successfully',
+        data: department,
+        message: 'Department created successfully',
       });
     } catch (error) {
       next(error);
     }
   };
 
-  getGrades = async (_req: Request, res: Response, next: NextFunction) => {
+  getDepartments = async (_req: Request, res: Response, next: NextFunction) => {
     try {
-      const grades = await this.gradeService.getGrades();
+      const departments = await this.departmentService.getDepartments();
       res.status(200).json({
         success: true,
-        data: grades,
-        message: 'Grades retrieved successfully',
+        data: departments,
+        message: 'Departments retrieved successfully',
       });
     } catch (error) {
       next(error);
     }
   };
 
-  getGradeById = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { id } = req.params;
-      const grade = await this.gradeService.getGradeById(id as string);
-      res.status(200).json({
-        success: true,
-        data: grade,
-        message: 'Grade retrieved successfully',
-      });
-    } catch (error) {
-      next(error);
-    }
-  };
-
-  updateGrade = async (req: Request, res: Response, next: NextFunction) => {
+  getDepartmentById = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
-      const grade = await this.gradeService.updateGrade(id as string, req.body);
+      const department = await this.departmentService.getDepartmentById(id as string);
       res.status(200).json({
         success: true,
-        data: grade,
-        message: 'Grade updated successfully',
+        data: department,
+        message: 'Department retrieved successfully',
       });
     } catch (error) {
       next(error);
     }
   };
 
-  deleteGrade = async (req: Request, res: Response, next: NextFunction) => {
+  updateDepartment = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
-      await this.gradeService.deleteGrade(id as string);
+      const department = await this.departmentService.updateDepartment(id as string, req.body);
       res.status(200).json({
         success: true,
-        message: 'Grade deleted successfully',
+        data: department,
+        message: 'Department updated successfully',
       });
     } catch (error) {
       next(error);
     }
   };
 
-  importGrades = async (req: Request, res: Response, next: NextFunction) => {
+  deleteDepartment = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      await this.departmentService.deleteDepartment(id as string);
+      res.status(200).json({
+        success: true,
+        message: 'Department deleted successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  importDepartments = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { data } = req.body as any;
 
@@ -88,15 +88,15 @@ export class GradeController {
         return;
       }
 
-      const result = await GradeImportService.importGrades(data);
+      const result = await DepartmentImportService.importDepartments(data);
       const statusCode = result.success ? 200 : 207;
 
       res.status(statusCode).json({
         success: result.success,
         data: result,
         message: result.success
-          ? `Successfully imported ${result.successCount} grade(s)`
-          : `Imported ${result.successCount} grade(s) with ${result.failedCount} failure(s)`,
+          ? `Successfully imported ${result.successCount} department(s)`
+          : `Imported ${result.successCount} department(s) with ${result.failedCount} failure(s)`,
       });
     } catch (error) {
       next(error);
@@ -105,8 +105,8 @@ export class GradeController {
 
   downloadTemplate = async (_req: Request, res: Response, next: NextFunction) => {
     try {
-      const headers = GradeImportService.getTemplateHeaders();
-      const sampleData = GradeImportService.getSampleData();
+      const headers = DepartmentImportService.getTemplateHeaders();
+      const sampleData = DepartmentImportService.getSampleData();
 
       const csvHeaders = headers.join(',');
       const csvRows = sampleData.map((row) =>
@@ -124,7 +124,7 @@ export class GradeController {
       const csvContent = [csvHeaders, ...csvRows].join('\n');
 
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-      res.setHeader('Content-Disposition', 'attachment; filename=grade-import-template.csv');
+      res.setHeader('Content-Disposition', 'attachment; filename=department-import-template.csv');
       res.send(csvContent);
     } catch (error) {
       next(error);

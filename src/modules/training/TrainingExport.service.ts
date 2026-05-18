@@ -18,7 +18,6 @@ const TRAINING_EXPORT_HEADERS = [
     'Travel Cost',
     'Meal Cost',
     'Training Method',
-    'Category',
     'Comment',
     'FAQs',
     'Objectives',
@@ -28,9 +27,6 @@ const TRAINING_EXPORT_HEADERS = [
 export const TrainingExportService = {
     async exportToCsv(): Promise<string> {
         const trainingData = await prisma.training.findMany({
-            include: {
-                category: true
-            },
             orderBy: { createdAt: 'desc' }
         });
 
@@ -51,7 +47,6 @@ export const TrainingExportService = {
             training.travelCost?.toString() || '',
             training.mealCost?.toString() || '',
             training.trainingMethod,
-            training.category?.name || '',
             training.comment || '',
             training.faqs || '',
             training.objectives || '',

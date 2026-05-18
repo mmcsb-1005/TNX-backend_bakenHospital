@@ -9,6 +9,10 @@ export class DesignationService {
   }
 
   async createDesignation(data: CreateDesignationInput) {
+    if ((data as any).parentId === '') {
+      (data as any).parentId = null;
+    }
+
     // Check if designation name already exists
     const existing = await this.designationRepository.findByName(data.name);
     if (existing) {
@@ -39,6 +43,10 @@ export class DesignationService {
   }
 
   async updateDesignation(id: string, data: UpdateDesignationInput) {
+    if ((data as any).parentId === '') {
+      (data as any).parentId = null;
+    }
+
     // Check if designation exists
     await this.getDesignationById(id);
 
@@ -55,19 +63,18 @@ export class DesignationService {
       if (data.parentId === id) {
         throw new Error('Designation cannot be its own parent');
       }
-      
+
       const parent = await this.designationRepository.findById(data.parentId);
       if (!parent) {
         throw new Error('Parent designation not found');
       }
-      
-      // Check if setting this parent would create a circular reference
-      let currentParent = parent;
+
+      let currentParent = parent as any;
       while (currentParent?.parentId) {
         if (currentParent.parentId === id) {
           throw new Error('Cannot create circular parent-child relationship');
         }
-        currentParent = await this.designationRepository.findById(currentParent.parentId) as any;
+        currentParent = (await this.designationRepository.findById(currentParent.parentId)) as any;
       }
     }
 

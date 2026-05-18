@@ -5,6 +5,16 @@ import {
   BulkUpdateAttendanceInput 
 } from './UserAttendance.model';
 
+const userAttendanceInclude = {
+  training: true,
+  user: {
+    include: {
+      designation: true,
+      staffProfile: true,
+    },
+  },
+};
+
 export class UserAttendanceRepository {
   private prisma = prisma;
 
@@ -14,25 +24,13 @@ export class UserAttendanceRepository {
   async create(data: CreateUserAttendanceInput) {
     return await this.prisma.userAttendance.create({
       data,
-      include: {
-        training: {
-          include: {
-            category: true,
-          },
-        },
-      },
+      include: userAttendanceInclude,
     });
   }
 
   async findAll() {
     return await this.prisma.userAttendance.findMany({
-      include: {
-        training: {
-          include: {
-            category: true,
-          },
-        },
-      },
+      include: userAttendanceInclude,
       orderBy: {
         attendanceDate: 'desc',
       },
@@ -42,13 +40,7 @@ export class UserAttendanceRepository {
   async findById(id: string) {
     return await this.prisma.userAttendance.findUnique({
       where: { id },
-      include: {
-        training: {
-          include: {
-            category: true,
-          },
-        },
-      },
+      include: userAttendanceInclude,
     });
   }
 
@@ -67,26 +59,14 @@ export class UserAttendanceRepository {
           lte: endOfDay,
         },
       },
-      include: {
-        training: {
-          include: {
-            category: true,
-          },
-        },
-      },
+      include: userAttendanceInclude,
     });
   }
 
   async findByTraining(trainingId: string) {
     return await this.prisma.userAttendance.findMany({
       where: { trainingId },
-      include: {
-        training: {
-          include: {
-            category: true,
-          },
-        },
-      },
+      include: userAttendanceInclude,
       orderBy: {
         attendanceDate: 'asc',
       },
@@ -97,13 +77,7 @@ export class UserAttendanceRepository {
     return await this.prisma.userAttendance.update({
       where: { id },
       data,
-      include: {
-        training: {
-          include: {
-            category: true,
-          },
-        },
-      },
+      include: userAttendanceInclude,
     });
   }
 
@@ -134,13 +108,7 @@ export class UserAttendanceRepository {
           isPresent: attendance.isPresent,
           comment: attendance.comment,
         },
-        include: {
-          training: {
-            include: {
-              category: true,
-            },
-          },
-        },
+        include: userAttendanceInclude,
       });
       results.push(result);
     }
