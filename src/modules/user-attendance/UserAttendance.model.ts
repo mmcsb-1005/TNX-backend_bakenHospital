@@ -27,5 +27,6 @@ export interface BulkUpdateAttendanceInput {
     userId: string;
     isPresent: boolean;
     comment?: string;
+    attendedTime?: string | null;
   }[];
 }

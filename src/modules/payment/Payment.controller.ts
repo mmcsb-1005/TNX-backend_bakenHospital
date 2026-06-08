@@ -66,7 +66,17 @@ export class PaymentController {
           ...(statusFilter ? { paymentStatus: statusFilter } : {}),
         },
         include: {
-          user: { select: { id: true, name: true, email: true, userOrgId: true } },
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              userOrgId: true,
+              departmentId: true,
+              department: { select: { id: true, name: true } },
+              staffProfile: { select: { department: true } },
+            },
+          },
           training: {
             select: {
               id: true,
@@ -163,6 +173,17 @@ export class PaymentController {
       const claims = await prisma.paymentClaim.findMany({
         where: { userId },
         include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              userOrgId: true,
+              departmentId: true,
+              department: { select: { id: true, name: true } },
+              staffProfile: { select: { department: true } },
+            },
+          },
           training: {
             select: {
               id: true,

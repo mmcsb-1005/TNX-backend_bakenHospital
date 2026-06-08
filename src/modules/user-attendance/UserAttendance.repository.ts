@@ -21,6 +21,31 @@ export class UserAttendanceRepository {
   constructor() {
   }
 
+  private buildScannedAt(attendanceDate: Date, attendedTime?: string | null): Date | null {
+    if (!attendedTime) return null;
+    const match = attendedTime.match(/^(\d{1,2}):(\d{2})$/);
+    if (!match) return null;
+    const hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+    if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+
+    const scannedAt = new Date(attendanceDate);
+    scannedAt.setHours(hours, minutes, 0, 0);
+    return scannedAt;
+  }
+
+  private getExpectedStartAt(attendanceDate: Date, trainingStart: Date): Date {
+    const expected = new Date(attendanceDate);
+    expected.setHours(
+      trainingStart.getHours(),
+      trainingStart.getMinutes(),
+      trainingStart.getSeconds(),
+      trainingStart.getMilliseconds()
+    );
+    return expected;
+  }
+
   async create(data: CreateUserAttendanceInput) {
     return await this.prisma.userAttendance.create({
       data,
@@ -86,28 +111,79 @@ export class UserAttendanceRepository {
     date: Date, 
     data: BulkUpdateAttendanceInput
   ) {
+    const normalizedDate = new Date(date);
+    normalizedDate.setHours(0, 0, 0, 0);
+
+    const training = await this.prisma.training.findUnique({
+      where: { id: trainingId },
+      select: { dateTimeStart: true },
+    });
+    const expectedStartAt = training?.dateTimeStart
+      ? this.getExpectedStartAt(normalizedDate, training.dateTimeStart)
+      : null;
+    const setting = await this.prisma.setting.findFirst({
+      select: { attendanceGraceMinutes: true },
+    });
+    const graceMinutes = setting?.attendanceGraceMinutes ?? 15;
+
     const results = [];
     
     for (const attendance of data.attendances) {
+      const scannedAt = attendance.isPresent
+        ? this.buildScannedAt(normalizedDate, attendance.attendedTime)
+        : null;
+
+      const lateCutoff = expectedStartAt
+        ? new Date(expectedStartAt.getTime() + graceMinutes * 60 * 1000)
+        : null;
+      const isLate =
+        Boolean(attendance.isPresent && scannedAt && lateCutoff && scannedAt.getTime() > lateCutoff.getTime());
+      const lateMinutes =
+        isLate && expectedStartAt && scannedAt
+          ? Math.ceil((scannedAt.getTime() - expectedStartAt.getTime()) / (60 * 1000))
+          : null;
+
+      const updateData: Record<string, unknown> = {
+        isPresent: attendance.isPresent,
+        comment: attendance.comment,
+        ...(expectedStartAt ? { expectedStartAt } : {}),
+      };
+
+      if (!attendance.isPresent) {
+        updateData.scannedAt = null;
+        updateData.scannedVia = null;
+        updateData.isLate = false;
+        updateData.lateMinutes = null;
+      } else {
+        updateData.scannedAt = scannedAt;
+        updateData.scannedVia = scannedAt ? "MANUAL" : null;
+        updateData.isLate = isLate;
+        updateData.lateMinutes = lateMinutes;
+      }
+
+      const createData: Record<string, unknown> = {
+        trainingId,
+        userId: attendance.userId,
+        attendanceDate: normalizedDate,
+        isPresent: attendance.isPresent,
+        comment: attendance.comment,
+        ...(expectedStartAt ? { expectedStartAt } : {}),
+        scannedAt: scannedAt,
+        scannedVia: scannedAt ? "MANUAL" : null,
+        isLate,
+        lateMinutes,
+      };
+
       const result = await this.prisma.userAttendance.upsert({
         where: {
           trainingId_userId_attendanceDate: {
             trainingId,
             userId: attendance.userId,
-            attendanceDate: date,
+            attendanceDate: normalizedDate,
           },
         },
-        update: {
-          isPresent: attendance.isPresent,
-          comment: attendance.comment,
-        },
-        create: {
-          trainingId,
-          userId: attendance.userId,
-          attendanceDate: date,
-          isPresent: attendance.isPresent,
-          comment: attendance.comment,
-        },
+        update: updateData as any,
+        create: createData as any,
         include: userAttendanceInclude,
       });
       results.push(result);

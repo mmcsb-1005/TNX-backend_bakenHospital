@@ -4,6 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  
 }
 
 model User {
@@ -68,6 +69,7 @@ model Training {
   duration          String?
   venue             String
   bond              BondType
+  category          String?
   typeOfPayment     PaymentType
   budgeted          Boolean
   sponsored         String?
@@ -93,6 +95,7 @@ model Training {
   requestTrainings  RequestTraining[]
   bookmarks         TrainingBookmark[]
   attendances       UserAttendance[]
+  formLinks         FormTraining[]
 }
 
 model QrCode {
@@ -135,6 +138,7 @@ model Setting {
   phoneNumber                String?
   requiredTrainingHours      Int?     @default(40)
   trainingReminderDays       Int?     @default(7)
+  attendanceGraceMinutes     Int?     @default(15)
 }
 
 model Mail {
@@ -292,12 +296,17 @@ model UserAttendance {
   comment        String?
   scannedAt      DateTime?
   scannedVia     String?   @default("QR_CODE")
+  expectedStartAt DateTime?
+  isLate          Boolean  @default(false)
+  lateMinutes     Int?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   training       Training  @relation(fields: [trainingId], references: [id], onDelete: Cascade)
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([trainingId, userId, attendanceDate])
+  @@index([trainingId, attendanceDate])
+  @@index([trainingId, isLate])
 }
 
 model PaymentClaim {
@@ -335,6 +344,20 @@ model Form {
   updatedAt   DateTime         @updatedAt
   fields      FormField[]
   submissions FormSubmission[]
+  trainingLinks FormTraining[]
+}
+
+model FormTraining {
+  id         String   @id @default(cuid())
+  formId     String
+  trainingId String
+  createdAt  DateTime @default(now())
+  form       Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  training   Training @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+
+  @@unique([formId, trainingId])
+  @@index([trainingId])
+  @@index([formId])
 }
 
 model FormField {

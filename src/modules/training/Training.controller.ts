@@ -74,6 +74,10 @@ export class TrainingController {
           dateTimeStart: true,
           dateTimeEnd: true,
           venue: true,
+          trainingCost: true,
+          accommodationCost: true,
+          travelCost: true,
+          mealCost: true,
           updatedAt: true,
           paymentClaims: {
             where: { userId },
@@ -92,6 +96,11 @@ export class TrainingController {
       const data = trainings.map(t => {
         const claim = t.paymentClaims?.[0]
         const isPaid = claim?.paymentStatus === PaymentClaimStatus.PAID && Boolean(claim.receiptPath)
+        const totalPayment = new Prisma.Decimal(0)
+          .plus(t.trainingCost ?? 0)
+          .plus(t.accommodationCost ?? 0)
+          .plus(t.travelCost ?? 0)
+          .plus(t.mealCost ?? 0)
         return {
           id: t.id,
           title: t.title,
@@ -99,6 +108,7 @@ export class TrainingController {
           dateTimeStart: t.dateTimeStart,
           dateTimeEnd: t.dateTimeEnd,
           venue: t.venue,
+          totalPayment: totalPayment.toFixed(2),
           paymentStatus: isPaid ? 'PAYMENT_SUCCESS' : 'UNPAID',
           paymentProofPath: claim?.receiptPath ?? null,
           paymentProofOriginalName: claim?.receiptOriginalName ?? null,
@@ -442,6 +452,7 @@ export class TrainingController {
         dateTimeEnd,
         venue,
         bond,
+        category,
         typeOfPayment,
         budgeted,
         sponsored,
@@ -490,6 +501,7 @@ export class TrainingController {
           duration,
           venue,
           bond,
+          category: category || null,
           typeOfPayment,
           budgeted,
           sponsored,
@@ -535,6 +547,7 @@ export class TrainingController {
         dateTimeEnd,
         venue,
         bond,
+        category,
         typeOfPayment,
         budgeted,
         sponsored,
@@ -597,6 +610,7 @@ export class TrainingController {
           ...(duration && { duration }),
           ...(venue && { venue }),
           ...(bond && { bond }),
+          ...(category !== undefined && { category: category || null }),
           ...(typeOfPayment && { typeOfPayment }),
           ...(budgeted !== undefined && { budgeted }),
           ...(sponsored !== undefined && { sponsored }),

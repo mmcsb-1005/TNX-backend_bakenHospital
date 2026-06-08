@@ -28,6 +28,17 @@ const getAttendanceDayNumber = (trainingStartDate: Date, attendanceDate: Date): 
   return Math.max(1, Math.floor(diffInMs / (1000 * 60 * 60 * 24)) + 1);
 };
 
+const getExpectedStartAt = (attendanceDate: Date, trainingStart: Date): Date => {
+  const expected = new Date(attendanceDate);
+  expected.setHours(
+    trainingStart.getHours(),
+    trainingStart.getMinutes(),
+    trainingStart.getSeconds(),
+    trainingStart.getMilliseconds()
+  );
+  return expected;
+};
+
 export class UserAttendanceController {
   private userAttendanceService: UserAttendanceService;
 
@@ -236,6 +247,14 @@ export class UserAttendanceController {
 
       // Determine attendance date - use QR code date
       const attendanceDate = getStartOfDay(qrCodeRecord.date);
+      const setting = await prisma.setting.findFirst({
+        select: { attendanceGraceMinutes: true },
+      });
+      const graceMinutes = setting?.attendanceGraceMinutes ?? 15;
+      const expectedStartAt = getExpectedStartAt(attendanceDate, training.dateTimeStart);
+      const lateCutoff = new Date(expectedStartAt.getTime() + graceMinutes * 60 * 1000);
+      const isLate = now.getTime() > lateCutoff.getTime();
+      const lateMinutes = isLate ? Math.ceil((now.getTime() - expectedStartAt.getTime()) / (60 * 1000)) : null;
 
       const trainingStartDate = getStartOfDay(training.dateTimeStart);
       const trainingEndDate = getStartOfDay(training.dateTimeEnd);
@@ -279,7 +298,10 @@ export class UserAttendanceController {
           data: {
             isPresent: true,
             scannedAt: now,
-            scannedVia: 'QR_CODE'
+            scannedVia: 'QR_CODE',
+            expectedStartAt,
+            isLate,
+            lateMinutes,
           },
           include: {
             user: {
@@ -331,7 +353,10 @@ export class UserAttendanceController {
           attendanceDate,
           isPresent: true,
           scannedAt: now,
-          scannedVia: 'QR_CODE'
+          scannedVia: 'QR_CODE',
+          expectedStartAt,
+          isLate,
+          lateMinutes,
         },
         include: {
           user: {

@@ -11,7 +11,10 @@ export class FormSubmissionController {
       // Verify form exists and is active
       const form = await prisma.form.findUnique({
         where: { id: formId as string },
-        include: { fields: true }
+        include: {
+          fields: true,
+          trainingLinks: true,
+        }
       })
 
       if (!form) {
@@ -26,6 +29,34 @@ export class FormSubmissionController {
           success: false,
           message: 'This form is currently inactive'
         })
+      }
+
+      if (Array.isArray((form as any).trainingLinks) && (form as any).trainingLinks.length > 0) {
+        if (!userId || typeof userId !== 'string') {
+          return res.status(400).json({
+            success: false,
+            message: 'userId is required for this form',
+          })
+        }
+
+        const linkedTrainingIds = (form as any).trainingLinks
+          .map((l: any) => l?.trainingId)
+          .filter((x: any): x is string => typeof x === 'string')
+
+        const canSubmit = await prisma.requestTraining.count({
+          where: {
+            status: 'APPROVED',
+            trainingId: { in: linkedTrainingIds },
+            participants: { some: { id: userId } },
+          },
+        })
+
+        if (canSubmit === 0) {
+          return res.status(403).json({
+            success: false,
+            message: 'You do not have access to submit this form',
+          })
+        }
       }
 
       // Validate required fields
