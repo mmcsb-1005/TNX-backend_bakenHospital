@@ -143,3 +143,6 @@ EMAIL_PASS=your_email_password
 - Middleware authentication melindungi routes sensitif
 - Sistem menyokong upload gambar dan CSV import
 - Notifikasi emel dihantar untuk kelulusan dan pembayaran
+
+## Hanif tester
+- hello
